@@ -1,6 +1,7 @@
 import { Badge } from "@/components/base/badges/badges";
 import type { AccountUser, AccountDetail } from "@/lib/queries/account-detail";
 import { formatDate, formatRelativeTime } from "@/lib/utils/format";
+import { UserActions } from "./user-actions";
 
 interface UsersSectionProps {
   users: AccountUser[];
@@ -23,12 +24,13 @@ export function UsersSection({ users, account }: UsersSectionProps) {
               <th className="px-6 py-3 text-left text-xs font-semibold text-quaternary">Joined</th>
               <th className="px-6 py-3 text-left text-xs font-semibold text-quaternary">Last Active</th>
               <th className="px-6 py-3 text-left text-xs font-semibold text-quaternary">Verified</th>
+              <th className="px-6 py-3 text-right text-xs font-semibold text-quaternary">Actions</th>
             </tr>
           </thead>
           <tbody className="divide-y divide-secondary">
             {users.length === 0 ? (
               <tr>
-                <td colSpan={6} className="px-6 py-8 text-center text-sm text-tertiary">
+                <td colSpan={7} className="px-6 py-8 text-center text-sm text-tertiary">
                   No users found
                 </td>
               </tr>
@@ -48,6 +50,9 @@ export function UsersSection({ users, account }: UsersSectionProps) {
                     <Badge color={user.emailVerified ? "success" : "warning"} size="sm">
                       {user.emailVerified ? "Verified" : "Unverified"}
                     </Badge>
+                  </td>
+                  <td className="px-6 py-4 text-right">
+                    <UserActions accountId={account.id} userEmail={user.email} />
                   </td>
                 </tr>
               ))

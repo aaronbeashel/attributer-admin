@@ -2,13 +2,15 @@ import { Badge } from "@/components/base/badges/badges";
 import type { AccountDetail, AccountSubscription } from "@/lib/queries/account-detail";
 import { formatDate } from "@/lib/utils/format";
 import { STATUS_COLORS } from "@/lib/utils/constants";
+import { AccountActions } from "./account-actions";
 
 interface AccountHeaderProps {
   account: AccountDetail;
   subscription: AccountSubscription | null;
+  sites: Array<{ domain: string }>;
 }
 
-export function AccountHeader({ account, subscription }: AccountHeaderProps) {
+export function AccountHeader({ account, subscription, sites }: AccountHeaderProps) {
   return (
     <div className="flex items-start justify-between">
       <div>
@@ -31,6 +33,14 @@ export function AccountHeader({ account, subscription }: AccountHeaderProps) {
           <span>Created {formatDate(account.createdAt)}</span>
         </div>
       </div>
+
+      <AccountActions
+        accountId={account.id}
+        companyName={account.company || account.name}
+        email={account.email}
+        currentPeriodEnd={subscription?.currentPeriodEnd ?? null}
+        sites={sites}
+      />
     </div>
   );
 }

@@ -3,8 +3,10 @@ import type { AccountSubscription } from "@/lib/queries/account-detail";
 import { formatCurrency, formatDate } from "@/lib/utils/format";
 import { getStripeDashboardUrl } from "@/lib/stripe";
 import { STATUS_COLORS } from "@/lib/utils/constants";
+import { SubscriptionActions } from "./subscription-actions";
 
 interface SubscriptionSectionProps {
+  accountId: string;
   subscription: AccountSubscription | null;
 }
 
@@ -25,7 +27,7 @@ function Field({ label, value, href }: { label: string; value: string | null; hr
   );
 }
 
-export function SubscriptionSection({ subscription }: SubscriptionSectionProps) {
+export function SubscriptionSection({ accountId, subscription }: SubscriptionSectionProps) {
   if (!subscription) {
     return (
       <div className="rounded-xl border border-secondary bg-primary px-6 py-8 text-center">
@@ -41,9 +43,19 @@ export function SubscriptionSection({ subscription }: SubscriptionSectionProps) 
       <div className="border-b border-secondary px-6 py-4">
         <div className="flex items-center justify-between">
           <h2 className="text-lg font-semibold text-primary">Subscription</h2>
-          <Badge color={STATUS_COLORS[subscription.status] ?? "gray"} size="md">
-            {subscription.status.charAt(0).toUpperCase() + subscription.status.slice(1)}
-          </Badge>
+          <div className="flex items-center gap-3">
+            <Badge color={STATUS_COLORS[subscription.status] ?? "gray"} size="md">
+              {subscription.status.charAt(0).toUpperCase() + subscription.status.slice(1)}
+            </Badge>
+            <SubscriptionActions
+              accountId={accountId}
+              planId={subscription.planId}
+              planName={subscription.planName}
+              planPriceCents={subscription.planPriceCents}
+              status={subscription.status}
+              trialEndsAt={subscription.trialEndsAt}
+            />
+          </div>
         </div>
       </div>
 

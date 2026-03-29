@@ -9,6 +9,7 @@ import {
 import { AccountHeader } from "./_components/account-header";
 import { UsersSection } from "./_components/users-section";
 import { SubscriptionSection } from "./_components/subscription-section";
+import { BillingSection } from "./_components/billing-section";
 import { SitesSection } from "./_components/sites-section";
 import { AttributionSection } from "./_components/attribution-section";
 import { EnrichmentSection } from "./_components/enrichment-section";
@@ -31,11 +32,20 @@ export default async function AccountDetailPage({
     getAccountEvents(account.id, 20),
   ]);
 
+  // Prepare sites for the header (for block option in cancel modal)
+  const siteDomains = (sites ?? [])
+    .filter((s) => s.isActive && s.domain)
+    .map((s) => ({ domain: s.domain! }));
+
   return (
     <div className="space-y-6">
-      <AccountHeader account={account} subscription={subscription} />
+      <AccountHeader account={account} subscription={subscription} sites={siteDomains} />
       <UsersSection users={users} account={account} />
-      <SubscriptionSection subscription={subscription} />
+      <SubscriptionSection accountId={account.id} subscription={subscription} />
+      <BillingSection
+        accountId={account.id}
+        stripeCustomerId={subscription?.stripeCustomerId ?? null}
+      />
       <SitesSection sites={sites} />
       <AttributionSection account={account} />
       <EnrichmentSection account={account} />
