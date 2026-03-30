@@ -9,8 +9,11 @@ interface SitesSectionProps {
 export function SitesSection({ sites }: SitesSectionProps) {
   return (
     <div className="rounded-xl border border-secondary bg-primary">
-      <div className="border-b border-secondary px-6 py-4">
+      <div className="flex items-center justify-between border-b border-secondary px-6 py-4">
         <h2 className="text-lg font-semibold text-primary">Sites</h2>
+        <span className="text-sm text-tertiary">
+          {sites.filter((s) => s.status === "active").length} active
+        </span>
       </div>
       <div className="overflow-x-auto">
         <table className="w-full">
