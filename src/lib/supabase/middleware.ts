@@ -39,9 +39,18 @@ export async function updateSession(request: NextRequest) {
 
   const isLoginPage = request.nextUrl.pathname === "/login";
   const isAuthCallback = request.nextUrl.pathname.startsWith("/api/auth");
+  const isApiRoute = request.nextUrl.pathname.startsWith("/api/account") ||
+    request.nextUrl.pathname.startsWith("/api/stripe") ||
+    request.nextUrl.pathname.startsWith("/api/cron") ||
+    request.nextUrl.pathname.startsWith("/api/webhooks");
 
   // Allow auth callback routes
   if (isAuthCallback) {
+    return supabaseResponse;
+  }
+
+  // Allow API routes — they use their own Bearer token auth
+  if (isApiRoute) {
     return supabaseResponse;
   }
 
