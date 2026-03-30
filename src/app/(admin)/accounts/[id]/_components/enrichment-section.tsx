@@ -1,6 +1,7 @@
 import { Badge } from "@/components/base/badges/badges";
 import type { AccountDetail } from "@/lib/queries/account-detail";
 import { formatDate } from "@/lib/utils/format";
+import { EnrichButton } from "./enrich-button";
 
 interface EnrichmentSectionProps {
   account: AccountDetail;
@@ -36,11 +37,14 @@ export function EnrichmentSection({ account }: EnrichmentSectionProps) {
       <div className="border-b border-secondary px-6 py-4">
         <div className="flex items-center justify-between">
           <h2 className="text-lg font-semibold text-primary">AI Enrichment</h2>
-          {account.aiEnrichedAt && (
-            <span className="text-xs text-quaternary">
-              Last enriched {formatDate(account.aiEnrichedAt)}
-            </span>
-          )}
+          <div className="flex items-center gap-3">
+            {account.aiEnrichedAt && (
+              <span className="text-xs text-quaternary">
+                Last enriched {formatDate(account.aiEnrichedAt)}
+              </span>
+            )}
+            <EnrichButton accountId={account.id} hasEnrichment={!!hasEnrichment} />
+          </div>
         </div>
       </div>
       {hasEnrichment ? (
