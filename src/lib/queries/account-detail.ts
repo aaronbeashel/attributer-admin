@@ -36,9 +36,11 @@ export interface AccountDetail {
 export interface AccountUser {
   id: string;
   name: string;
+  firstName: string;
+  lastName: string;
   email: string;
   emailVerified: boolean;
-  image: string | null;
+  role: string;
   createdAt: string;
   updatedAt: string;
 }
@@ -134,22 +136,40 @@ export async function getAccountById(id: string): Promise<AccountDetail | null> 
   };
 }
 
-export async function getAccountUsers(betterauthUserId: string): Promise<AccountUser[]> {
+export async function getAccountUsers(accountId: string): Promise<AccountUser[]> {
   const supabase = createSupabaseAdminClient();
-  const { data } = await supabase
-    .from("user")
-    .select("*")
-    .eq("id", betterauthUserId);
 
-  return (data ?? []).map((u) => ({
-    id: u.id,
-    name: u.name,
-    email: u.email,
-    emailVerified: u.email_verified,
-    image: u.image,
-    createdAt: u.created_at,
-    updatedAt: u.updated_at,
-  }));
+  // Query the users profile table (has first_name/last_name) and join with BetterAuth user table (has email/verified)
+  const { data: profiles } = await supabase
+    .from("users")
+    .select("id, betterauth_user_id, first_name, last_name, role, created_at, updated_at")
+    .eq("account_id", accountId);
+
+  if (!profiles || profiles.length === 0) return [];
+
+  // Get the BetterAuth user records for email/verified status
+  const userIds = profiles.map((p) => p.betterauth_user_id);
+  const { data: authUsers } = await supabase
+    .from("user")
+    .select("id, email, email_verified")
+    .in("id", userIds);
+
+  const authUserMap = new Map((authUsers ?? []).map((u) => [u.id, u]));
+
+  return profiles.map((p) => {
+    const authUser = authUserMap.get(p.betterauth_user_id);
+    return {
+      id: p.id,
+      name: `${p.first_name} ${p.last_name}`,
+      firstName: p.first_name,
+      lastName: p.last_name,
+      email: authUser?.email ?? "",
+      emailVerified: authUser?.email_verified ?? false,
+      role: p.role,
+      createdAt: p.created_at,
+      updatedAt: p.updated_at,
+    };
+  });
 }
 
 export async function getAccountSubscription(accountId: string): Promise<AccountSubscription | null> {

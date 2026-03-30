@@ -20,7 +20,7 @@ export function UsersSection({ users, account }: UsersSectionProps) {
             <tr className="border-b border-secondary bg-secondary">
               <th className="px-6 py-3 text-left text-xs font-semibold text-quaternary">Name</th>
               <th className="px-6 py-3 text-left text-xs font-semibold text-quaternary">Email</th>
-              <th className="px-6 py-3 text-left text-xs font-semibold text-quaternary">Signup Method</th>
+              <th className="px-6 py-3 text-left text-xs font-semibold text-quaternary">Role</th>
               <th className="px-6 py-3 text-left text-xs font-semibold text-quaternary">Joined</th>
               <th className="px-6 py-3 text-left text-xs font-semibold text-quaternary">Last Active</th>
               <th className="px-6 py-3 text-left text-xs font-semibold text-quaternary">Verified</th>
@@ -41,7 +41,7 @@ export function UsersSection({ users, account }: UsersSectionProps) {
                   <td className="px-6 py-4 text-sm text-tertiary">{user.email}</td>
                   <td className="px-6 py-4">
                     <Badge color="gray" size="sm">
-                      {account.signupMethod}
+                      {user.role}
                     </Badge>
                   </td>
                   <td className="px-6 py-4 text-sm text-tertiary">{formatDate(user.createdAt)}</td>

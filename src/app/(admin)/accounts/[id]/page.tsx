@@ -26,7 +26,7 @@ export default async function AccountDetailPage({
   if (!account) notFound();
 
   const [users, subscription, sites, events] = await Promise.all([
-    getAccountUsers(account.betterauthUserId),
+    getAccountUsers(account.id),
     getAccountSubscription(account.id),
     getAccountSites(account.id),
     getAccountEvents(account.id, 20),
