@@ -22,11 +22,6 @@ export function ActivityTimeline({ events }: ActivityTimelineProps) {
         ) : (
           events.map((event) => (
             <div key={event.id} className="flex items-start gap-4 px-6 py-4">
-              <div className="mt-0.5 shrink-0">
-                <Badge color={getEventTypeColor(event.eventType)} size="sm">
-                  {event.eventType}
-                </Badge>
-              </div>
               <div className="min-w-0 flex-1">
                 <p className="text-sm font-medium text-primary">
                   {getEventDescription(event.eventType, event.eventSubtype)}
@@ -45,6 +40,11 @@ export function ActivityTimeline({ events }: ActivityTimelineProps) {
                     </pre>
                   </details>
                 )}
+              </div>
+              <div className="mt-0.5 shrink-0">
+                <Badge color={getEventTypeColor(event.eventType)} size="sm">
+                  {event.eventType}
+                </Badge>
               </div>
             </div>
           ))

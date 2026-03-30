@@ -16,7 +16,7 @@ interface SearchResult {
   matchType: string;
 }
 
-export function GlobalSearch() {
+export function GlobalSearch({ dropUp = false }: { dropUp?: boolean } = {}) {
   const router = useRouter();
   const [query, setQuery] = useState("");
   const [results, setResults] = useState<SearchResult[]>([]);
@@ -87,7 +87,7 @@ export function GlobalSearch() {
   );
 
   return (
-    <div className="relative w-full max-w-md">
+    <div className="relative w-full">
       <div className="relative">
         <SearchLg className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-quaternary" />
         <input
@@ -107,7 +107,7 @@ export function GlobalSearch() {
       </div>
 
       {isOpen && results.length > 0 && (
-        <div className="absolute z-50 mt-1 w-full rounded-xl border border-secondary bg-primary shadow-lg">
+        <div className={`absolute z-50 w-full rounded-xl border border-secondary bg-primary shadow-lg ${dropUp ? "bottom-full mb-1" : "mt-1"}`}>
           <div className="max-h-80 overflow-y-auto py-1">
             {results.map((result, index) => (
               <button

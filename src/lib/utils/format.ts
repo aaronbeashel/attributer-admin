@@ -13,6 +13,7 @@ export function formatDate(date: string | Date | null | undefined): string {
     month: "short",
     day: "numeric",
     year: "numeric",
+    timeZone: "Australia/Sydney",
   });
 }
 
@@ -25,6 +26,7 @@ export function formatDateTime(date: string | Date | null | undefined): string {
     year: "numeric",
     hour: "numeric",
     minute: "2-digit",
+    timeZone: "Australia/Sydney",
   });
 }
 
