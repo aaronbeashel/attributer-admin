@@ -11,9 +11,9 @@ export function SitesSection({ sites }: SitesSectionProps) {
     <div className="rounded-xl border border-secondary bg-primary">
       <div className="flex items-center justify-between border-b border-secondary px-6 py-4">
         <h2 className="text-lg font-semibold text-primary">Sites</h2>
-        <span className="text-sm text-tertiary">
+        <Badge color="gray" size="sm">
           {sites.filter((s) => s.status === "active").length} active
-        </span>
+        </Badge>
       </div>
       <div className="overflow-x-auto">
         <table className="w-full">
