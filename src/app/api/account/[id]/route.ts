@@ -27,7 +27,7 @@ export async function GET(
     .from("sites")
     .select("id, name, domain, website_url")
     .eq("account_id", id)
-    .eq("is_active", true);
+    .eq("status", "active");
 
   // Get owner profile (BetterAuth user)
   const { data: owner } = await supabase

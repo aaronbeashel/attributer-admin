@@ -74,7 +74,7 @@ export interface AccountSite {
   formTool: string | null;
   crm: string | null;
   isDefault: boolean;
-  isActive: boolean;
+  status: string;
   createdAt: string;
   cmsOther: string | null;
   formToolOther: string | null;
@@ -203,7 +203,7 @@ export async function getAccountSites(accountId: string): Promise<AccountSite[]>
     formTool: s.form_tool,
     crm: s.crm,
     isDefault: s.is_default,
-    isActive: s.is_active,
+    status: s.status,
     createdAt: s.created_at,
     cmsOther: s.cms_other,
     formToolOther: s.form_tool_other,

@@ -34,7 +34,7 @@ export default async function AccountDetailPage({
 
   // Prepare sites for the header (for block option in cancel modal)
   const siteDomains = (sites ?? [])
-    .filter((s) => s.isActive && s.domain)
+    .filter((s) => s.status === "active" && s.domain)
     .map((s) => ({ domain: s.domain! }));
 
   return (

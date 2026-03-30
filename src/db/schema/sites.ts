@@ -11,7 +11,7 @@ export const sites = pgTable("sites", {
   formTool: varchar("form_tool"),
   crm: varchar("crm"),
   isDefault: boolean("is_default").notNull(),
-  isActive: boolean("is_active").notNull(),
+  status: varchar("status").notNull(),
   createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
   updatedAt: timestamp("updated_at", { withTimezone: true }).notNull().defaultNow(),
   cmsOther: varchar("cms_other"),

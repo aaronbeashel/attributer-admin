@@ -62,8 +62,8 @@ export function SitesSection({ sites }: SitesSectionProps) {
                   <td className="px-6 py-4 text-sm text-tertiary">{site.crm || site.crmOther || "—"}</td>
                   <td className="px-6 py-4 text-sm text-tertiary">{formatDate(site.createdAt)}</td>
                   <td className="px-6 py-4">
-                    <Badge color={site.isActive ? "success" : "gray"} size="sm">
-                      {site.isActive ? "Active" : "Inactive"}
+                    <Badge color={site.status === "active" ? "success" : "gray"} size="sm">
+                      {site.status.charAt(0).toUpperCase() + site.status.slice(1)}
                     </Badge>
                   </td>
                 </tr>
