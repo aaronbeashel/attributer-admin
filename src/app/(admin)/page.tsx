@@ -1,3 +1,5 @@
+export const dynamic = "force-dynamic";
+
 import Link from "next/link";
 import { getDashboardMetrics, getRecentSignups, getRecentCancellations } from "@/lib/queries/dashboard";
 import { formatCurrency, formatRelativeTime, formatPercentChange } from "@/lib/utils/format";

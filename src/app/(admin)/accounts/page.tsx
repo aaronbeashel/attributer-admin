@@ -1,3 +1,5 @@
+export const dynamic = "force-dynamic";
+
 import { Suspense } from "react";
 import { getAccountsList, getDistinctPlans, getDistinctStatuses } from "@/lib/queries/accounts";
 import { AccountsTable } from "./_components/accounts-table";

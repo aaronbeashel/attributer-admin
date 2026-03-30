@@ -1,3 +1,5 @@
+export const dynamic = "force-dynamic";
+
 import { Suspense } from "react";
 import { getEventLogs, getDistinctEventTypes, getDistinctSources } from "@/lib/queries/logs";
 import { LogsTable } from "./_components/logs-table";
