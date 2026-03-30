@@ -23,22 +23,22 @@ interface BillingSectionProps {
 
 export function BillingSection({ accountId, stripeCustomerId }: BillingSectionProps) {
   const [charges, setCharges] = useState<Charge[]>([]);
-  const [isLoading, setIsLoading] = useState(true);
+  const [isLoading, setIsLoading] = useState(!!stripeCustomerId);
   const [selectedCharge, setSelectedCharge] = useState<Charge | null>(null);
 
   useEffect(() => {
-    if (!stripeCustomerId) {
-      setIsLoading(false);
-      return;
-    }
+    if (!stripeCustomerId) return;
 
+    let cancelled = false;
     fetch(`/api/account/${accountId}/charges`, {
       headers: { Authorization: `Bearer ${process.env.NEXT_PUBLIC_ADMIN_API_KEY}` },
     })
       .then((res) => res.json())
-      .then((data) => setCharges(data.charges || []))
-      .catch(() => setCharges([]))
-      .finally(() => setIsLoading(false));
+      .then((data) => { if (!cancelled) setCharges(data.charges || []); })
+      .catch(() => { if (!cancelled) setCharges([]); })
+      .finally(() => { if (!cancelled) setIsLoading(false); });
+
+    return () => { cancelled = true; };
   }, [accountId, stripeCustomerId]);
 
   if (!stripeCustomerId) {

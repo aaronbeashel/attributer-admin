@@ -37,8 +37,8 @@ export async function GET(
       stripeSubscription = {
         status: sub.status,
         cancelAtPeriodEnd: sub.cancel_at_period_end,
-        // eslint-disable-next-line @typescript-eslint/no-explicit-any
         discount: (() => {
+            // eslint-disable-next-line @typescript-eslint/no-explicit-any
             const d = (sub.discounts as any)?.[0];
             const coupon = d?.coupon;
             if (!coupon) return null;
