@@ -23,7 +23,7 @@ export function UsersSection({ users, account }: UsersSectionProps) {
               <th className="px-6 py-3 text-left text-xs font-semibold text-quaternary">Role</th>
               <th className="px-6 py-3 text-left text-xs font-semibold text-quaternary">Joined</th>
               <th className="px-6 py-3 text-left text-xs font-semibold text-quaternary">Last Active</th>
-              <th className="px-6 py-3 text-left text-xs font-semibold text-quaternary">Verified</th>
+              <th className="px-6 py-3 text-left text-xs font-semibold text-quaternary">Signup</th>
               <th className="px-6 py-3 text-right text-xs font-semibold text-quaternary">Actions</th>
             </tr>
           </thead>
@@ -47,8 +47,8 @@ export function UsersSection({ users, account }: UsersSectionProps) {
                   <td className="px-6 py-4 text-sm text-tertiary">{formatDate(user.createdAt)}</td>
                   <td className="px-6 py-4 text-sm text-tertiary">{formatRelativeTime(user.updatedAt)}</td>
                   <td className="px-6 py-4">
-                    <Badge color={user.emailVerified ? "success" : "warning"} size="sm">
-                      {user.emailVerified ? "Verified" : "Unverified"}
+                    <Badge color="gray" size="sm">
+                      {account.signupMethod === "google" ? "Google" : "Email"}
                     </Badge>
                   </td>
                   <td className="px-6 py-4 text-right">
