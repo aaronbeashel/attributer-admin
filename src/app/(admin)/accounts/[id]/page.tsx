@@ -1,6 +1,7 @@
 import { notFound } from "next/navigation";
 import {
   getAccountById,
+  getAccountEnrichment,
   getAccountUsers,
   getAccountSubscription,
   getAccountSites,
@@ -25,11 +26,12 @@ export default async function AccountDetailPage({
   const account = await getAccountById(id);
   if (!account) notFound();
 
-  const [users, subscription, sites, events] = await Promise.all([
+  const [users, subscription, sites, events, enrichment] = await Promise.all([
     getAccountUsers(account.id),
     getAccountSubscription(account.id),
     getAccountSites(account.id),
     getAccountEvents(account.id, 20),
+    getAccountEnrichment(account.id),
   ]);
 
   // Prepare sites for the header (for block option in cancel modal)
@@ -48,7 +50,7 @@ export default async function AccountDetailPage({
       />
       <SitesSection sites={sites} />
       <AttributionSection account={account} />
-      <EnrichmentSection account={account} />
+      <EnrichmentSection accountId={account.id} enrichment={enrichment} />
       <ActivityTimeline events={events} />
     </div>
   );

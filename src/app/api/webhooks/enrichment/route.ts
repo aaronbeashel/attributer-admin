@@ -11,7 +11,12 @@ export async function POST(request: Request) {
 
   try {
     const body = await request.json();
-    const { external_id, status, industry, company_size, signup_path, confidence_industry, confidence_size, confidence_path, job_id } = body;
+    const {
+      external_id, status, job_id,
+      industry, sub_industry, company_size, signup_path,
+      job_title, job_description,
+      confidence_industry, confidence_size, confidence_path,
+    } = body;
 
     if (!external_id) {
       return NextResponse.json({ error: "external_id is required" }, { status: 400 });
@@ -31,24 +36,30 @@ export async function POST(request: Request) {
       return NextResponse.json({ error: "Account not found" }, { status: 404 });
     }
 
-    // Update AI enrichment fields
-    const { error: updateError } = await supabase
-      .from("accounts")
-      .update({
-        ai_industry: industry ?? "Unknown",
-        ai_company_size: company_size ?? "Unknown",
-        ai_signup_path: signup_path ?? "Unknown",
-        ai_confidence_industry: confidence_industry ?? 0,
-        ai_confidence_size: confidence_size ?? 0,
-        ai_confidence_path: confidence_path ?? 0,
-        ai_enriched_at: new Date().toISOString(),
-        updated_at: new Date().toISOString(),
-      })
-      .eq("id", external_id);
+    // Upsert into account_enrichment table
+    const { error: upsertError } = await supabase
+      .from("account_enrichment")
+      .upsert(
+        {
+          account_id: external_id,
+          industry: industry ?? "Unknown",
+          sub_industry: sub_industry ?? null,
+          company_size: company_size ?? "Unknown",
+          signup_path: signup_path ?? "Unknown",
+          job_title: job_title ?? null,
+          job_description: job_description ?? null,
+          confidence_industry: confidence_industry ?? 0,
+          confidence_size: confidence_size ?? 0,
+          confidence_path: confidence_path ?? 0,
+          enriched_at: new Date().toISOString(),
+          updated_at: new Date().toISOString(),
+        },
+        { onConflict: "account_id" }
+      );
 
-    if (updateError) {
-      console.error("[enrichment-webhook] Failed to update account:", updateError);
-      return NextResponse.json({ error: "Failed to update account" }, { status: 500 });
+    if (upsertError) {
+      console.error("[enrichment-webhook] Failed to upsert enrichment:", upsertError);
+      return NextResponse.json({ error: "Failed to update enrichment" }, { status: 500 });
     }
 
     await logEvent({
@@ -59,8 +70,11 @@ export async function POST(request: Request) {
         jobId: job_id,
         status,
         industry,
+        subIndustry: sub_industry,
         companySize: company_size,
         signupPath: signup_path,
+        jobTitle: job_title,
+        jobDescription: job_description,
         confidenceIndustry: confidence_industry,
         confidenceSize: confidence_size,
         confidencePath: confidence_path,

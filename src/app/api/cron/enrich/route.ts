@@ -18,21 +18,30 @@ export async function GET(request: Request) {
 
   const supabase = createSupabaseAdminClient();
 
-  // Find un-enriched accounts that have completed tool selection (site exists)
-  const { data: accounts, error } = await supabase
+  // Get account IDs that already have enrichment
+  const { data: enrichedRows } = await supabase
+    .from("account_enrichment")
+    .select("account_id");
+
+  const enrichedIds = new Set((enrichedRows ?? []).map((r) => r.account_id));
+
+  // Find accounts that need enrichment (have completed tool selection but no enrichment row)
+  const { data: allAccounts, error } = await supabase
     .from("accounts")
     .select("id, email, company")
-    .is("ai_enriched_at", null)
     .not("tools_selected_at", "is", null)
     .order("created_at", { ascending: true })
-    .limit(50);
+    .limit(200);
 
   if (error) {
     console.error("[cron/enrich] Failed to query accounts:", error);
     return NextResponse.json({ error: "Failed to query accounts" }, { status: 500 });
   }
 
-  if (!accounts || accounts.length === 0) {
+  // Filter to accounts without enrichment
+  const accounts = (allAccounts ?? []).filter((a) => !enrichedIds.has(a.id)).slice(0, 50);
+
+  if (accounts.length === 0) {
     return NextResponse.json({ success: true, message: "No accounts to enrich", sent: 0 });
   }
 

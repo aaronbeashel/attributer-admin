@@ -1,10 +1,11 @@
 import { Badge } from "@/components/base/badges/badges";
-import type { AccountDetail } from "@/lib/queries/account-detail";
+import type { AccountEnrichment } from "@/lib/queries/account-detail";
 import { formatDate } from "@/lib/utils/format";
 import { EnrichButton } from "./enrich-button";
 
 interface EnrichmentSectionProps {
-  account: AccountDetail;
+  accountId: string;
+  enrichment: AccountEnrichment | null;
 }
 
 function ConfidenceBadge({ confidence }: { confidence: number | null }) {
@@ -29,8 +30,8 @@ function Field({ label, value, confidence }: { label: string; value: string | nu
   );
 }
 
-export function EnrichmentSection({ account }: EnrichmentSectionProps) {
-  const hasEnrichment = account.aiIndustry || account.aiCompanySize || account.aiSignupPath;
+export function EnrichmentSection({ accountId, enrichment }: EnrichmentSectionProps) {
+  const hasEnrichment = enrichment?.industry || enrichment?.companySize || enrichment?.signupPath;
 
   return (
     <div className="rounded-xl border border-secondary bg-primary">
@@ -38,20 +39,32 @@ export function EnrichmentSection({ account }: EnrichmentSectionProps) {
         <div className="flex items-center justify-between">
           <h2 className="text-lg font-semibold text-primary">AI Enrichment</h2>
           <div className="flex items-center gap-3">
-            {account.aiEnrichedAt && (
+            {enrichment?.enrichedAt && (
               <span className="text-xs text-quaternary">
-                Last enriched {formatDate(account.aiEnrichedAt)}
+                Last enriched {formatDate(enrichment.enrichedAt)}
               </span>
             )}
-            <EnrichButton accountId={account.id} hasEnrichment={!!hasEnrichment} />
+            <EnrichButton accountId={accountId} hasEnrichment={!!hasEnrichment} />
           </div>
         </div>
       </div>
       {hasEnrichment ? (
         <div className="grid grid-cols-2 gap-6 px-6 py-5 lg:grid-cols-3">
-          <Field label="Industry" value={account.aiIndustry} confidence={account.aiConfidenceIndustry} />
-          <Field label="Company Size" value={account.aiCompanySize} confidence={account.aiConfidenceSize} />
-          <Field label="Signup Path" value={account.aiSignupPath} confidence={account.aiConfidencePath} />
+          <Field label="Industry" value={enrichment!.industry} confidence={enrichment!.confidenceIndustry} />
+          {enrichment!.subIndustry && (
+            <Field label="Sub-Industry" value={enrichment!.subIndustry} />
+          )}
+          <Field label="Company Size" value={enrichment!.companySize} confidence={enrichment!.confidenceSize} />
+          <Field label="Signup Path" value={enrichment!.signupPath} confidence={enrichment!.confidencePath} />
+          {enrichment!.jobTitle && (
+            <Field label="Job Title" value={enrichment!.jobTitle} />
+          )}
+          {enrichment!.jobDescription && (
+            <div className="col-span-2">
+              <dt className="text-sm text-tertiary">Job Description</dt>
+              <dd className="mt-1 text-sm font-medium text-primary">{enrichment!.jobDescription}</dd>
+            </div>
+          )}
         </div>
       ) : (
         <div className="px-6 py-8 text-center">

@@ -1,4 +1,5 @@
 export * from "./accounts";
+export * from "./account-enrichment";
 export * from "./users";
 export * from "./subscriptions";
 export * from "./sites";

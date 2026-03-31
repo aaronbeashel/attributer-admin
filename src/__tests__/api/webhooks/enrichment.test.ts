@@ -20,8 +20,7 @@ const makeRequest = (body: Record<string, unknown>) =>
   });
 
 const mockSingle = vi.fn();
-const mockUpdate = vi.fn();
-const mockEq = vi.fn();
+const mockUpsert = vi.fn();
 
 describe("POST /api/webhooks/enrichment", () => {
   beforeEach(() => {
@@ -29,7 +28,7 @@ describe("POST /api/webhooks/enrichment", () => {
     process.env.ENRICHMENT_API_KEY = "test-enrichment-key";
 
     mockSingle.mockResolvedValue({ data: { id: "acc_123" }, error: null });
-    mockEq.mockResolvedValue({ error: null });
+    mockUpsert.mockResolvedValue({ error: null });
 
     vi.mocked(createSupabaseAdminClient).mockReturnValue({
       from: vi.fn((table: string) => {
@@ -38,8 +37,10 @@ describe("POST /api/webhooks/enrichment", () => {
             select: vi.fn().mockReturnValue({
               eq: vi.fn().mockReturnValue({ single: mockSingle }),
             }),
-            update: vi.fn().mockReturnValue({ eq: mockEq }),
           };
+        }
+        if (table === "account_enrichment") {
+          return { upsert: mockUpsert };
         }
         return {};
       }),
@@ -67,22 +68,34 @@ describe("POST /api/webhooks/enrichment", () => {
     expect(res.status).toBe(404);
   });
 
-  it("updates account with enrichment data on success", async () => {
+  it("upserts enrichment data into account_enrichment table", async () => {
     const res = await POST(makeRequest({
       external_id: "acc_123",
       status: "completed",
       job_id: "job_1",
       industry: "Construction",
+      sub_industry: "Residential",
       company_size: "11-50",
       signup_path: "agency",
+      job_title: "Marketing Manager",
+      job_description: "Manages digital campaigns",
       confidence_industry: 85,
       confidence_size: 60,
       confidence_path: 95,
     }));
 
     expect(res.status).toBe(200);
-    const body = await res.json();
-    expect(body.success).toBe(true);
+    expect(mockUpsert).toHaveBeenCalledWith(
+      expect.objectContaining({
+        account_id: "acc_123",
+        industry: "Construction",
+        sub_industry: "Residential",
+        company_size: "11-50",
+        signup_path: "agency",
+        job_title: "Marketing Manager",
+      }),
+      { onConflict: "account_id" }
+    );
   });
 
   it("logs account_classified event", async () => {
