@@ -7,7 +7,11 @@ vi.mock("@/lib/event-logger", () => ({ logEvent: vi.fn().mockResolvedValue(undef
 vi.mock("@/lib/supabase/admin", () => ({
   createSupabaseAdminClient: vi.fn().mockReturnValue({
     from: vi.fn().mockReturnValue({
-      update: vi.fn().mockReturnValue({ eq: vi.fn().mockResolvedValue({ error: null }) }),
+      update: vi.fn().mockReturnValue({
+        eq: vi.fn().mockReturnValue({
+          eq: vi.fn().mockResolvedValue({ error: null }),
+        }),
+      }),
     }),
   }),
 }));

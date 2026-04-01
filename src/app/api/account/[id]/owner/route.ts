@@ -59,6 +59,21 @@ export async function PUT(
       .update(userUpdates)
       .eq("id", account.betterauth_user_id);
 
+    // Update users profile table (first_name / last_name)
+    if (body.firstName || body.lastName) {
+      const profileUpdates: Record<string, unknown> = {
+        updated_at: new Date().toISOString(),
+      };
+      if (body.firstName) profileUpdates.first_name = body.firstName;
+      if (body.lastName) profileUpdates.last_name = body.lastName;
+
+      await supabase
+        .from("users")
+        .update(profileUpdates)
+        .eq("account_id", id)
+        .eq("role", "owner");
+    }
+
     // Sync email to Stripe
     if (result.subscription?.stripe_customer_id) {
       await updateStripeCustomer({
