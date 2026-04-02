@@ -12,14 +12,41 @@ export interface PipelineResult {
   accountContext: { id: string; name: string; email: string } | null;
 }
 
+/**
+ * Check if domains are licensed — a domain is only licensed if it exists
+ * in the sites table AND the account has an active or trialing subscription.
+ */
 export async function filterLicensedDomains(
   domains: { domain: string; callCount: number }[]
 ): Promise<{ domain: string; callCount: number; isLicensed: boolean }[]> {
   const supabase = createSupabaseAdminClient();
 
-  // Get all site domains from the database
-  const { data: sites } = await supabase.from("sites").select("domain").not("domain", "is", null);
-  const licensedDomains = new Set((sites ?? []).map((s) => s.domain?.toLowerCase()).filter(Boolean));
+  // Get site domains with their account's subscription status
+  const { data: sites } = await supabase
+    .from("sites")
+    .select("domain, accounts(id, subscriptions(status))")
+    .not("domain", "is", null);
+
+  const licensedDomains = new Set<string>();
+
+  for (const site of sites ?? []) {
+    if (!site.domain) continue;
+    const account = site.accounts as unknown as {
+      id: string;
+      subscriptions: Array<{ status: string }>;
+    } | null;
+
+    if (!account) continue;
+
+    // Check if any subscription is active or trialing
+    const hasActiveSub = account.subscriptions?.some(
+      (sub) => sub.status === "active" || sub.status === "trialing"
+    );
+
+    if (hasActiveSub) {
+      licensedDomains.add(site.domain.toLowerCase());
+    }
+  }
 
   return domains.map((d) => ({
     ...d,
@@ -98,26 +125,36 @@ export async function getAccountContext(
 export async function runPipeline(
   domains: { domain: string; callCount: number }[]
 ): Promise<PipelineResult[]> {
-  // Step 1: Filter licensed domains
+  // Step 1: Filter licensed domains (DB query — fast)
+  // Only domains with active/trialing subscriptions are considered licensed
   const withLicense = await filterLicensedDomains(domains);
-
-  // Step 2: Get only unlicensed domains for further processing
   const unlicensed = withLicense.filter((d) => !d.isLicensed);
   const unlicensedDomains = unlicensed.map((d) => d.domain);
 
-  // Step 3: Check blocklist
+  if (unlicensedDomains.length === 0) {
+    return [];
+  }
+
+  // Step 2: Check blocklist (licensing server — fast)
   const blockedMap = await filterBlockedDomains(unlicensedDomains);
 
-  // Step 4: Check installs
-  const installMap = await checkInstalls(unlicensedDomains);
-
-  // Step 5: Get prior reviews
+  // Step 3: Get prior reviews (DB query — fast)
   const reviewMap = await getPriorReviews(unlicensedDomains);
 
-  // Step 6: Get account context
+  // Step 4: Filter out blocked and reviewed domains before the expensive check
+  const needsInstallCheck = unlicensedDomains.filter((domain) => {
+    const isBlocked = blockedMap.get(domain)?.isBlocked ?? false;
+    const hasReview = reviewMap.has(domain);
+    return !isBlocked && !hasReview;
+  });
+
+  // Step 5: Check script installs ONLY on remaining domains (checker service — slow)
+  const installMap = await checkInstalls(needsInstallCheck);
+
+  // Step 6: Get account context for all unlicensed domains (DB query — fast)
   const contextMap = await getAccountContext(unlicensedDomains);
 
-  // Build results (only unlicensed domains)
+  // Build results (all unlicensed domains, including blocked/reviewed for display)
   return unlicensed.map((d) => ({
     domain: d.domain,
     callCount: d.callCount,
