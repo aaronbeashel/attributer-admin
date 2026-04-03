@@ -1,6 +1,6 @@
 "use client";
 
-import { useCallback, useRef, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 import Link from "next/link";
 import { Badge } from "@/components/base/badges/badges";
 import { Button } from "@/components/base/buttons/button";
@@ -29,13 +29,39 @@ export function LicensingUpload() {
   const [stats, setStats] = useState<{ totalRows: number; uniqueDomains: number; unlicensed: number } | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [minCallCount, setMinCallCount] = useState(50);
+  const [scanDate, setScanDate] = useState<string | null>(null);
+  const [scanType, setScanType] = useState<string | null>(null);
+  const [loading, setLoading] = useState(true);
   const fileInputRef = useRef<HTMLInputElement>(null);
+
+  // Load latest scan on mount
+  useEffect(() => {
+    let cancelled = false;
+    fetch("/api/licensing/scans")
+      .then((res) => res.json())
+      .then((data) => {
+        if (cancelled || !data.scan) return;
+        setResults(data.scan.results);
+        setStats({
+          totalRows: data.scan.totalRows,
+          uniqueDomains: data.scan.uniqueDomains,
+          unlicensed: data.scan.unlicensedCount,
+        });
+        setScanDate(data.scan.createdAt);
+        setScanType(data.scan.scanType);
+      })
+      .catch(() => {})
+      .finally(() => { if (!cancelled) setLoading(false); });
+    return () => { cancelled = true; };
+  }, []);
 
   const handleUpload = useCallback(async (file: File) => {
     setProcessing(true);
     setError(null);
     setResults([]);
     setStats(null);
+    setScanDate(null);
+    setScanType(null);
 
     try {
       const formData = new FormData();
@@ -58,6 +84,8 @@ export function LicensingUpload() {
         uniqueDomains: data.uniqueDomains,
         unlicensed: data.unlicensedResults,
       });
+      setScanDate(new Date().toISOString());
+      setScanType("manual");
     } catch (err) {
       setError(err instanceof Error ? err.message : "Unknown error");
     } finally {
@@ -89,6 +117,14 @@ export function LicensingUpload() {
 
   const filteredResults = results.filter((r) => r.callCount >= minCallCount && !r.isBlocked);
 
+  if (loading) {
+    return (
+      <div className="rounded-xl border border-secondary bg-primary px-6 py-8 text-center">
+        <p className="text-sm text-tertiary">Loading latest scan...</p>
+      </div>
+    );
+  }
+
   return (
     <div className="space-y-6">
       {/* Upload Area */}
@@ -111,7 +147,7 @@ export function LicensingUpload() {
             browse
           </button>
         </p>
-        <p className="mt-1 text-xs text-tertiary">CSV files only</p>
+        <p className="mt-1 text-xs text-tertiary">CSV files only — or wait for the next automated weekly scan</p>
         <input
           ref={fileInputRef}
           type="file"
@@ -139,20 +175,32 @@ export function LicensingUpload() {
       )}
 
       {stats && (
-        <div className="grid grid-cols-3 gap-4">
-          <div className="rounded-xl border border-secondary bg-primary px-4 py-3 text-center">
-            <p className="text-2xl font-semibold text-primary">{stats.totalRows}</p>
-            <p className="text-xs text-tertiary">Total Rows</p>
+        <>
+          {/* Scan info */}
+          {scanDate && (
+            <div className="flex items-center gap-2 text-sm text-tertiary">
+              <span>
+                Last scan: {new Date(scanDate).toLocaleDateString("en-US", { month: "short", day: "numeric", year: "numeric", hour: "numeric", minute: "2-digit" })}
+              </span>
+              <Badge color="gray" size="sm">{scanType === "automated" ? "Automated" : "Manual"}</Badge>
+            </div>
+          )}
+
+          <div className="grid grid-cols-3 gap-4">
+            <div className="rounded-xl border border-secondary bg-primary px-4 py-3 text-center">
+              <p className="text-2xl font-semibold text-primary">{stats.totalRows}</p>
+              <p className="text-xs text-tertiary">Total Rows</p>
+            </div>
+            <div className="rounded-xl border border-secondary bg-primary px-4 py-3 text-center">
+              <p className="text-2xl font-semibold text-primary">{stats.uniqueDomains}</p>
+              <p className="text-xs text-tertiary">Unique Domains</p>
+            </div>
+            <div className="rounded-xl border border-secondary bg-primary px-4 py-3 text-center">
+              <p className="text-2xl font-semibold text-primary">{stats.unlicensed}</p>
+              <p className="text-xs text-tertiary">Unlicensed</p>
+            </div>
           </div>
-          <div className="rounded-xl border border-secondary bg-primary px-4 py-3 text-center">
-            <p className="text-2xl font-semibold text-primary">{stats.uniqueDomains}</p>
-            <p className="text-xs text-tertiary">Unique Domains</p>
-          </div>
-          <div className="rounded-xl border border-secondary bg-primary px-4 py-3 text-center">
-            <p className="text-2xl font-semibold text-primary">{stats.unlicensed}</p>
-            <p className="text-xs text-tertiary">Unlicensed</p>
-          </div>
-        </div>
+        </>
       )}
 
       {results.length > 0 && (
@@ -247,6 +295,12 @@ export function LicensingUpload() {
               </tbody>
             </table>
           </div>
+        </div>
+      )}
+
+      {!loading && results.length === 0 && !processing && !error && (
+        <div className="rounded-xl border border-secondary bg-primary px-6 py-8 text-center">
+          <p className="text-sm text-tertiary">No scan results yet. Upload a CSV or wait for the next automated scan.</p>
         </div>
       )}
     </div>

@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from "next/server";
 import { parseCSV } from "@/lib/licensing/process-csv";
 import { normalizeDomain, deduplicateDomains } from "@/lib/licensing/normalize";
 import { runPipeline } from "@/lib/licensing/pipeline";
+import { createSupabaseAdminClient } from "@/lib/supabase/admin";
 
 export async function POST(request: NextRequest) {
   try {
@@ -28,6 +29,16 @@ export async function POST(request: NextRequest) {
 
     // Run full pipeline
     const results = await runPipeline(deduplicated);
+
+    // Persist results
+    const supabase = createSupabaseAdminClient();
+    await supabase.from("licensing_scans").insert({
+      scan_type: "manual",
+      total_rows: rawRows.length,
+      unique_domains: deduplicated.length,
+      unlicensed_count: results.length,
+      results: JSON.stringify(results),
+    });
 
     return NextResponse.json({
       totalRows: rawRows.length,

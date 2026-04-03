@@ -42,7 +42,8 @@ export async function updateSession(request: NextRequest) {
   const isApiRoute = request.nextUrl.pathname.startsWith("/api/account") ||
     request.nextUrl.pathname.startsWith("/api/stripe") ||
     request.nextUrl.pathname.startsWith("/api/cron") ||
-    request.nextUrl.pathname.startsWith("/api/webhooks");
+    request.nextUrl.pathname.startsWith("/api/webhooks") ||
+    request.nextUrl.pathname.startsWith("/api/licensing");
 
   // Allow auth callback routes
   if (isAuthCallback) {
