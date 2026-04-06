@@ -4,6 +4,39 @@ import { parseCSV } from "@/lib/licensing/process-csv";
 import { normalizeDomain, deduplicateDomains } from "@/lib/licensing/normalize";
 import { checkBlockedDomains } from "@/lib/external/blocklist";
 
+// Helper: check if a domain has a licensed account (active/trialing subscription)
+async function checkDomainLicensed(
+  supabase: ReturnType<typeof createSupabaseAdminClient>,
+  domain: string
+): Promise<{ isLicensed: boolean; account: { id: string; name: string; email: string } | null }> {
+  const { data: sites } = await supabase
+    .from("sites")
+    .select("domain, accounts(id, name, email, subscriptions(status))")
+    .eq("domain", domain);
+
+  let bestAccount: { id: string; name: string; email: string } | null = null;
+
+  for (const site of sites ?? []) {
+    const account = site.accounts as unknown as {
+      id: string; name: string; email: string;
+      subscriptions: Array<{ status: string }>;
+    } | null;
+    if (!account) continue;
+
+    // Track any account context
+    bestAccount = { id: account.id, name: account.name, email: account.email };
+
+    const hasActiveSub = account.subscriptions?.some(
+      (s) => s.status === "active" || s.status === "trialing"
+    );
+    if (hasActiveSub) {
+      return { isLicensed: true, account: bestAccount };
+    }
+  }
+
+  return { isLicensed: false, account: bestAccount };
+}
+
 export async function GET(request: Request) {
   const authHeader = request.headers.get("authorization");
   if (!authHeader?.startsWith("Bearer ") || authHeader.slice(7) !== process.env.CRON_SECRET) {
@@ -65,75 +98,49 @@ export async function GET(request: Request) {
       .eq("status", "new");
 
     if (newDomains && newDomains.length > 0) {
-      // Check licensed: domain in sites table with active/trialing subscription
-      const { data: licensedSites } = await supabase
-        .from("sites")
-        .select("domain, accounts(id, name, email, subscriptions(status))");
+      const licensedIds = new Set<string>();
 
-      const licensedMap = new Map<string, { id: string; name: string; email: string }>();
-      for (const site of licensedSites ?? []) {
-        if (!site.domain) continue;
-        const account = site.accounts as unknown as {
-          id: string; name: string; email: string;
-          subscriptions: Array<{ status: string }>;
-        } | null;
-        if (!account) continue;
-        const hasActiveSub = account.subscriptions?.some(
-          (s) => s.status === "active" || s.status === "trialing"
-        );
-        if (hasActiveSub) {
-          licensedMap.set(site.domain.toLowerCase(), { id: account.id, name: account.name, email: account.email });
-        }
-      }
-
-      // Get account context for non-licensed domains (may still be in sites table with cancelled sub)
-      const accountContextMap = new Map<string, { id: string; name: string; email: string }>();
-      for (const site of licensedSites ?? []) {
-        if (!site.domain) continue;
-        const account = site.accounts as unknown as { id: string; name: string; email: string } | null;
-        if (account && !licensedMap.has(site.domain.toLowerCase())) {
-          accountContextMap.set(site.domain.toLowerCase(), { id: account.id, name: account.name, email: account.email });
-        }
-      }
-
-      // Batch update licensed domains
+      // Check each domain individually for license status
       for (const d of newDomains) {
-        const licensed = licensedMap.get(d.domain.toLowerCase());
-        if (licensed) {
+        const { isLicensed, account } = await checkDomainLicensed(supabase, d.domain);
+
+        if (isLicensed && account) {
           await supabase.from("licensing_domains").update({
             status: "licensed",
             is_licensed: true,
-            account_id: licensed.id,
-            account_name: licensed.name,
-            account_email: licensed.email,
+            account_id: account.id,
+            account_name: account.name,
+            account_email: account.email,
+            updated_at: now,
+          }).eq("id", d.id);
+          licensedIds.add(d.id);
+        } else if (account) {
+          // Has an account but not licensed — store context for display
+          await supabase.from("licensing_domains").update({
+            account_id: account.id,
+            account_name: account.name,
+            account_email: account.email,
             updated_at: now,
           }).eq("id", d.id);
         }
       }
 
       // Check blocked on licensing server (only non-licensed new domains)
-      const unlicensedNew = newDomains.filter((d) => !licensedMap.has(d.domain.toLowerCase()));
+      const unlicensedNew = newDomains.filter((d) => !licensedIds.has(d.id));
       if (unlicensedNew.length > 0) {
         const blockedResults = await checkBlockedDomains(unlicensedNew.map((d) => d.domain));
         const blockedSet = new Set(blockedResults.filter((r) => r.isBlocked).map((r) => r.domain));
 
         for (const d of unlicensedNew) {
-          const ctx = accountContextMap.get(d.domain.toLowerCase());
           if (blockedSet.has(d.domain)) {
             await supabase.from("licensing_domains").update({
               status: "blocked",
               is_blocked: true,
-              account_id: ctx?.id ?? null,
-              account_name: ctx?.name ?? null,
-              account_email: ctx?.email ?? null,
               updated_at: now,
             }).eq("id", d.id);
           } else {
             await supabase.from("licensing_domains").update({
               status: "pending_check",
-              account_id: ctx?.id ?? null,
-              account_name: ctx?.name ?? null,
-              account_email: ctx?.email ?? null,
               updated_at: now,
             }).eq("id", d.id);
           }
@@ -148,21 +155,9 @@ export async function GET(request: Request) {
       .eq("status", "licensed");
 
     if (licensedDomains && licensedDomains.length > 0) {
-      const { data: activeSites } = await supabase
-        .from("sites")
-        .select("domain, accounts(subscriptions(status))");
-
-      const stillLicensed = new Set<string>();
-      for (const site of activeSites ?? []) {
-        if (!site.domain) continue;
-        const account = site.accounts as unknown as { subscriptions: Array<{ status: string }> } | null;
-        if (account?.subscriptions?.some((s) => s.status === "active" || s.status === "trialing")) {
-          stillLicensed.add(site.domain.toLowerCase());
-        }
-      }
-
       for (const d of licensedDomains) {
-        if (!stillLicensed.has(d.domain.toLowerCase())) {
+        const { isLicensed } = await checkDomainLicensed(supabase, d.domain);
+        if (!isLicensed) {
           await supabase.from("licensing_domains").update({
             status: "pending_check", is_licensed: false, updated_at: now,
           }).eq("id", d.id);
