@@ -1,7 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 import { parseCSV } from "@/lib/licensing/process-csv";
 import { normalizeDomain, deduplicateDomains } from "@/lib/licensing/normalize";
-import { runPipeline } from "@/lib/licensing/pipeline";
 import { createSupabaseAdminClient } from "@/lib/supabase/admin";
 
 export async function POST(request: NextRequest) {
@@ -20,37 +19,38 @@ export async function POST(request: NextRequest) {
       return NextResponse.json({ error: "No valid rows found in CSV" }, { status: 400 });
     }
 
-    // Normalize and deduplicate
     const normalized = rawRows.map((r) => ({
       domain: normalizeDomain(r.domain),
       callCount: r.callCount,
     }));
     const deduplicated = deduplicateDomains(normalized);
 
-    // Run full pipeline
-    const results = await runPipeline(deduplicated);
-
-    // Persist results
     const supabase = createSupabaseAdminClient();
-    await supabase.from("licensing_scans").insert({
-      scan_type: "manual",
-      total_rows: rawRows.length,
-      unique_domains: deduplicated.length,
-      unlicensed_count: results.length,
-      results: JSON.stringify(results),
-    });
+    const now = new Date().toISOString();
+
+    // Upsert all domains into licensing_domains with status 'new'
+    for (const d of deduplicated) {
+      await supabase
+        .from("licensing_domains")
+        .upsert(
+          {
+            domain: d.domain,
+            call_count: d.callCount,
+            last_seen_at: now,
+            updated_at: now,
+          },
+          { onConflict: "domain", ignoreDuplicates: false }
+        );
+    }
 
     return NextResponse.json({
+      success: true,
       totalRows: rawRows.length,
       uniqueDomains: deduplicated.length,
-      unlicensedResults: results.length,
-      results,
+      message: "Domains imported. Fast checks and install verification will run via cron.",
     });
   } catch (error) {
     console.error("Licensing processing error:", error);
-    return NextResponse.json(
-      { error: "Failed to process CSV" },
-      { status: 500 }
-    );
+    return NextResponse.json({ error: "Failed to process CSV" }, { status: 500 });
   }
 }

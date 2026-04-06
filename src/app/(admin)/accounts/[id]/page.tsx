@@ -48,7 +48,7 @@ export default async function AccountDetailPage({
         accountId={account.id}
         stripeCustomerId={subscription?.stripeCustomerId ?? null}
       />
-      <SitesSection sites={sites} />
+      <SitesSection sites={sites} accountId={account.id} />
       <AttributionSection account={account} />
       <EnrichmentSection accountId={account.id} enrichment={enrichment} />
       <ActivityTimeline events={events} />

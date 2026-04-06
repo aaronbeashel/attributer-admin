@@ -8,3 +8,4 @@ export * from "./lead-events";
 export * from "./misc";
 export * from "./licensing-reviews";
 export * from "./licensing-scans";
+export * from "./licensing-domains";

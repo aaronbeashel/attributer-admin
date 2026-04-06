@@ -2,10 +2,9 @@ import { NextResponse } from "next/server";
 import { createSupabaseAdminClient } from "@/lib/supabase/admin";
 import { parseCSV } from "@/lib/licensing/process-csv";
 import { normalizeDomain, deduplicateDomains } from "@/lib/licensing/normalize";
-import { runPipeline } from "@/lib/licensing/pipeline";
+import { checkBlockedDomains } from "@/lib/external/blocklist";
 
 export async function GET(request: Request) {
-  // Validate cron secret
   const authHeader = request.headers.get("authorization");
   if (!authHeader?.startsWith("Bearer ") || authHeader.slice(7) !== process.env.CRON_SECRET) {
     return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
@@ -16,16 +15,15 @@ export async function GET(request: Request) {
   const password = process.env.LICENSING_SERVER_PASSWORD || "";
 
   try {
-    // Fetch CSV from licensing server
+    // Step 1: Fetch and parse CSV
     const csvRes = await fetch(`${serverUrl}/report.csv`, {
       headers: {
         Authorization: "Basic " + Buffer.from(`${username}:${password}`).toString("base64"),
       },
-      signal: AbortSignal.timeout(30000),
+      signal: AbortSignal.timeout(60000),
     });
 
     if (!csvRes.ok) {
-      console.error(`[cron/licensing] Failed to fetch CSV: HTTP ${csvRes.status}`);
       return NextResponse.json({ error: `Failed to fetch CSV: HTTP ${csvRes.status}` }, { status: 502 });
     }
 
@@ -34,46 +32,179 @@ export async function GET(request: Request) {
       return NextResponse.json({ success: true, message: "CSV was empty", totalRows: 0 });
     }
 
-    // Parse and process (same flow as manual upload)
     const rawRows = parseCSV(csvText);
     if (rawRows.length === 0) {
       return NextResponse.json({ success: true, message: "No valid rows in CSV", totalRows: 0 });
     }
 
-    const totalRows = rawRows.length;
-
-    const normalized = rawRows.map((row) => ({
-      ...row,
-      domain: normalizeDomain(row.domain),
-    }));
-
+    const normalized = rawRows.map((row) => ({ ...row, domain: normalizeDomain(row.domain) }));
     const deduplicated = deduplicateDomains(normalized);
-    const uniqueDomains = deduplicated.length;
 
-    // Run through the full pipeline
-    const results = await runPipeline(deduplicated);
-    const unlicensedCount = results.length;
-
-    // Store results in licensing_scans table
     const supabase = createSupabaseAdminClient();
-    const { error: insertError } = await supabase.from("licensing_scans").insert({
-      scan_type: "automated",
-      total_rows: totalRows,
-      unique_domains: uniqueDomains,
-      unlicensed_count: unlicensedCount,
-      results: JSON.stringify(results),
-    });
+    const now = new Date().toISOString();
 
-    if (insertError) {
-      console.error("[cron/licensing] Failed to store scan results:", insertError);
+    // Step 2: Upsert all domains
+    for (const d of deduplicated) {
+      await supabase
+        .from("licensing_domains")
+        .upsert(
+          {
+            domain: d.domain,
+            call_count: d.callCount,
+            last_seen_at: now,
+            updated_at: now,
+          },
+          { onConflict: "domain", ignoreDuplicates: false }
+        );
     }
+
+    // Step 3: Fast checks on 'new' domains
+    const { data: newDomains } = await supabase
+      .from("licensing_domains")
+      .select("id, domain")
+      .eq("status", "new");
+
+    if (newDomains && newDomains.length > 0) {
+      // Check licensed: domain in sites table with active/trialing subscription
+      const { data: licensedSites } = await supabase
+        .from("sites")
+        .select("domain, accounts(id, name, email, subscriptions(status))");
+
+      const licensedMap = new Map<string, { id: string; name: string; email: string }>();
+      for (const site of licensedSites ?? []) {
+        if (!site.domain) continue;
+        const account = site.accounts as unknown as {
+          id: string; name: string; email: string;
+          subscriptions: Array<{ status: string }>;
+        } | null;
+        if (!account) continue;
+        const hasActiveSub = account.subscriptions?.some(
+          (s) => s.status === "active" || s.status === "trialing"
+        );
+        if (hasActiveSub) {
+          licensedMap.set(site.domain.toLowerCase(), { id: account.id, name: account.name, email: account.email });
+        }
+      }
+
+      // Get account context for non-licensed domains (may still be in sites table with cancelled sub)
+      const accountContextMap = new Map<string, { id: string; name: string; email: string }>();
+      for (const site of licensedSites ?? []) {
+        if (!site.domain) continue;
+        const account = site.accounts as unknown as { id: string; name: string; email: string } | null;
+        if (account && !licensedMap.has(site.domain.toLowerCase())) {
+          accountContextMap.set(site.domain.toLowerCase(), { id: account.id, name: account.name, email: account.email });
+        }
+      }
+
+      // Batch update licensed domains
+      for (const d of newDomains) {
+        const licensed = licensedMap.get(d.domain.toLowerCase());
+        if (licensed) {
+          await supabase.from("licensing_domains").update({
+            status: "licensed",
+            is_licensed: true,
+            account_id: licensed.id,
+            account_name: licensed.name,
+            account_email: licensed.email,
+            updated_at: now,
+          }).eq("id", d.id);
+        }
+      }
+
+      // Check blocked on licensing server (only non-licensed new domains)
+      const unlicensedNew = newDomains.filter((d) => !licensedMap.has(d.domain.toLowerCase()));
+      if (unlicensedNew.length > 0) {
+        const blockedResults = await checkBlockedDomains(unlicensedNew.map((d) => d.domain));
+        const blockedSet = new Set(blockedResults.filter((r) => r.isBlocked).map((r) => r.domain));
+
+        for (const d of unlicensedNew) {
+          const ctx = accountContextMap.get(d.domain.toLowerCase());
+          if (blockedSet.has(d.domain)) {
+            await supabase.from("licensing_domains").update({
+              status: "blocked",
+              is_blocked: true,
+              account_id: ctx?.id ?? null,
+              account_name: ctx?.name ?? null,
+              account_email: ctx?.email ?? null,
+              updated_at: now,
+            }).eq("id", d.id);
+          } else {
+            await supabase.from("licensing_domains").update({
+              status: "pending_check",
+              account_id: ctx?.id ?? null,
+              account_name: ctx?.name ?? null,
+              account_email: ctx?.email ?? null,
+              updated_at: now,
+            }).eq("id", d.id);
+          }
+        }
+      }
+    }
+
+    // Step 4: Re-check 'licensed' domains (subscription may have been cancelled)
+    const { data: licensedDomains } = await supabase
+      .from("licensing_domains")
+      .select("id, domain")
+      .eq("status", "licensed");
+
+    if (licensedDomains && licensedDomains.length > 0) {
+      const { data: activeSites } = await supabase
+        .from("sites")
+        .select("domain, accounts(subscriptions(status))");
+
+      const stillLicensed = new Set<string>();
+      for (const site of activeSites ?? []) {
+        if (!site.domain) continue;
+        const account = site.accounts as unknown as { subscriptions: Array<{ status: string }> } | null;
+        if (account?.subscriptions?.some((s) => s.status === "active" || s.status === "trialing")) {
+          stillLicensed.add(site.domain.toLowerCase());
+        }
+      }
+
+      for (const d of licensedDomains) {
+        if (!stillLicensed.has(d.domain.toLowerCase())) {
+          await supabase.from("licensing_domains").update({
+            status: "pending_check", is_licensed: false, updated_at: now,
+          }).eq("id", d.id);
+        }
+      }
+    }
+
+    // Step 5: Re-check 'blocked' domains (may have been unblocked)
+    const { data: blockedDomains } = await supabase
+      .from("licensing_domains")
+      .select("id, domain")
+      .eq("status", "blocked");
+
+    if (blockedDomains && blockedDomains.length > 0) {
+      const recheck = await checkBlockedDomains(blockedDomains.map((d) => d.domain));
+      const stillBlocked = new Set(recheck.filter((r) => r.isBlocked).map((r) => r.domain));
+
+      for (const d of blockedDomains) {
+        if (!stillBlocked.has(d.domain)) {
+          await supabase.from("licensing_domains").update({
+            status: "pending_check", is_blocked: false, updated_at: now,
+          }).eq("id", d.id);
+        }
+      }
+    }
+
+    // Step 6: Reset 'check_failed' to 'pending_check' for retry
+    await supabase.from("licensing_domains").update({
+      status: "pending_check", updated_at: now,
+    }).eq("status", "check_failed");
+
+    // Get counts for response
+    const { count: pendingCount } = await supabase
+      .from("licensing_domains")
+      .select("*", { count: "exact", head: true })
+      .eq("status", "pending_check");
 
     return NextResponse.json({
       success: true,
-      scanType: "automated",
-      totalRows,
-      uniqueDomains,
-      unlicensedCount,
+      totalRows: rawRows.length,
+      uniqueDomains: deduplicated.length,
+      pendingInstallCheck: pendingCount ?? 0,
     });
   } catch (err) {
     console.error("[cron/licensing] Error:", err);
