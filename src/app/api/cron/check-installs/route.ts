@@ -10,9 +10,10 @@ export async function GET(request: Request) {
 
   const supabase = createSupabaseAdminClient();
   const now = new Date().toISOString();
+  const startTime = Date.now();
+  const MAX_RUNTIME_MS = 50000; // Stop after 50 seconds to ensure we return a response
 
-  // Pick up 25 pending domains, highest call count first
-  // ~60s at 2.1s per check — fits within the cron function's 90s timeout
+  // Pick up pending domains, highest call count first
   const { data: pending, error } = await supabase
     .from("licensing_domains")
     .select("id, domain")
@@ -30,8 +31,15 @@ export async function GET(request: Request) {
   }
 
   let checked = 0;
+  let skipped = 0;
 
   for (const domain of pending) {
+    // Stop if we're running out of time
+    if (Date.now() - startTime > MAX_RUNTIME_MS) {
+      skipped = pending.length - checked;
+      break;
+    }
+
     try {
       const result = await checkInstall(domain.domain);
 
@@ -66,6 +74,7 @@ export async function GET(request: Request) {
         script_checked_at: now,
         updated_at: now,
       }).eq("id", domain.id);
+      checked++;
     }
   }
 
@@ -78,6 +87,8 @@ export async function GET(request: Request) {
   return NextResponse.json({
     success: true,
     checked,
+    skipped,
     remaining: remaining ?? 0,
+    runtimeMs: Date.now() - startTime,
   });
 }
