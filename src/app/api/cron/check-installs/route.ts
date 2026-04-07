@@ -11,14 +11,14 @@ export async function GET(request: Request) {
   const supabase = createSupabaseAdminClient();
   const now = new Date().toISOString();
 
-  // Pick up 10 pending domains, highest call count first
-  // Limited to 10 to stay within Railway function timeout (~21s at 2.1s per check)
+  // Pick up 25 pending domains, highest call count first
+  // ~60s at 2.1s per check — fits within the cron function's 90s timeout
   const { data: pending, error } = await supabase
     .from("licensing_domains")
     .select("id, domain")
     .eq("status", "pending_check")
     .order("call_count", { ascending: false })
-    .limit(10);
+    .limit(25);
 
   if (error) {
     console.error("[cron/check-installs] Query error:", error);
