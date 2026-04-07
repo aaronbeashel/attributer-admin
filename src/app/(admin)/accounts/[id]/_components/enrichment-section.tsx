@@ -30,6 +30,27 @@ function Field({ label, value, confidence }: { label: string; value: string | nu
   );
 }
 
+function LinkField({ label, url }: { label: string; url: string | null }) {
+  return (
+    <div>
+      <dt className="text-sm text-tertiary">{label}</dt>
+      <dd className="mt-1">
+        {url ? (
+          <a href={url} target="_blank" rel="noopener noreferrer" className="text-sm font-medium text-brand hover:underline">
+            {url}
+          </a>
+        ) : (
+          <span className="text-sm font-medium text-primary">—</span>
+        )}
+      </dd>
+    </div>
+  );
+}
+
+function SectionHeader({ title }: { title: string }) {
+  return <h3 className="col-span-full text-sm font-semibold text-secondary uppercase tracking-wide">{title}</h3>;
+}
+
 export function EnrichmentSection({ accountId, enrichment }: EnrichmentSectionProps) {
   const hasEnrichment = enrichment?.industry || enrichment?.companySize || enrichment?.signupPath;
 
@@ -50,20 +71,72 @@ export function EnrichmentSection({ accountId, enrichment }: EnrichmentSectionPr
       </div>
       {hasEnrichment ? (
         <div className="grid grid-cols-2 gap-6 px-6 py-5 lg:grid-cols-3">
+          {/* Company Classification */}
+          <SectionHeader title="Company" />
           <Field label="Industry" value={enrichment!.industry} confidence={enrichment!.confidenceIndustry} />
           {enrichment!.subIndustry && (
             <Field label="Sub-Industry" value={enrichment!.subIndustry} />
           )}
           <Field label="Company Size" value={enrichment!.companySize} confidence={enrichment!.confidenceSize} />
-          <Field label="Signup Path" value={enrichment!.signupPath} confidence={enrichment!.confidencePath} />
-          {enrichment!.jobTitle && (
-            <Field label="Job Title" value={enrichment!.jobTitle} />
+          {enrichment!.employeeCount !== null && (
+            <Field label="Employee Count" value={String(enrichment!.employeeCount)} />
           )}
-          {enrichment!.jobDescription && (
+          <Field label="Signup Path" value={enrichment!.signupPath} confidence={enrichment!.confidencePath} />
+          {enrichment!.companyDescription && (
             <div className="col-span-2">
-              <dt className="text-sm text-tertiary">Job Description</dt>
-              <dd className="mt-1 text-sm font-medium text-primary">{enrichment!.jobDescription}</dd>
+              <dt className="text-sm text-tertiary">Company Description</dt>
+              <dd className="mt-1 text-sm font-medium text-primary">{enrichment!.companyDescription}</dd>
             </div>
+          )}
+          {enrichment!.companyLinkedinUrl && (
+            <LinkField label="Company LinkedIn" url={enrichment!.companyLinkedinUrl} />
+          )}
+
+          {/* Person Information */}
+          {(enrichment!.jobTitleRaw || enrichment!.jobRole || enrichment!.personDescription) && (
+            <>
+              <SectionHeader title="Person" />
+              {enrichment!.jobTitleRaw && (
+                <Field label="Job Title" value={enrichment!.jobTitleRaw} confidence={enrichment!.confidencePerson} />
+              )}
+              {enrichment!.jobRole && (
+                <Field label="Job Role" value={enrichment!.jobRole} />
+              )}
+              {enrichment!.seniorityLevel && (
+                <Field label="Seniority" value={enrichment!.seniorityLevel} />
+              )}
+              {enrichment!.personLocation && (
+                <Field label="Location" value={enrichment!.personLocation} />
+              )}
+              {enrichment!.yearsExperience !== null && (
+                <Field label="Years Experience" value={String(enrichment!.yearsExperience)} />
+              )}
+              {enrichment!.personLinkedinUrl && (
+                <LinkField label="Person LinkedIn" url={enrichment!.personLinkedinUrl} />
+              )}
+              {enrichment!.personDescription && (
+                <div className="col-span-2">
+                  <dt className="text-sm text-tertiary">Person Description</dt>
+                  <dd className="mt-1 text-sm font-medium text-primary">{enrichment!.personDescription}</dd>
+                </div>
+              )}
+            </>
+          )}
+
+          {/* Signup Analysis */}
+          {(enrichment!.emailDomain || enrichment!.domainsMatch !== null) && (
+            <>
+              <SectionHeader title="Signup Analysis" />
+              {enrichment!.emailDomain && (
+                <Field label="Email Domain" value={enrichment!.emailDomain} />
+              )}
+              {enrichment!.domainsMatch !== null && (
+                <Field
+                  label="Domains Match"
+                  value={enrichment!.domainsMatch ? "Yes" : "No"}
+                />
+              )}
+            </>
           )}
         </div>
       ) : (

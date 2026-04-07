@@ -18,30 +18,19 @@ export async function GET(request: Request) {
 
   const supabase = createSupabaseAdminClient();
 
-  // Get account IDs that already have enrichment
-  const { data: enrichedRows } = await supabase
-    .from("account_enrichment")
-    .select("account_id");
-
-  const enrichedIds = new Set((enrichedRows ?? []).map((r) => r.account_id));
-
-  // Find accounts that need enrichment (have completed tool selection but no enrichment row)
-  const { data: allAccounts, error } = await supabase
-    .from("accounts")
-    .select("id, email, company")
-    .not("tools_selected_at", "is", null)
-    .order("created_at", { ascending: true })
-    .limit(200);
+  // Get accounts that need enrichment directly from the database
+  // This uses a LEFT JOIN to find accounts without an enrichment row,
+  // so it always returns genuinely unenriched accounts regardless of
+  // how many have already been processed.
+  const { data: accounts, error } = await supabase
+    .rpc("get_unenriched_accounts", { batch_size: 50 });
 
   if (error) {
     console.error("[cron/enrich] Failed to query accounts:", error);
     return NextResponse.json({ error: "Failed to query accounts" }, { status: 500 });
   }
 
-  // Filter to accounts without enrichment
-  const accounts = (allAccounts ?? []).filter((a) => !enrichedIds.has(a.id)).slice(0, 50);
-
-  if (accounts.length === 0) {
+  if (!accounts || accounts.length === 0) {
     return NextResponse.json({ success: true, message: "No accounts to enrich", sent: 0 });
   }
 
@@ -72,6 +61,7 @@ export async function GET(request: Request) {
           email: account.email,
           company_name: account.company ?? null,
           website_url: websiteUrl,
+          person_name: account.name ?? null,
           webhook_url: webhookUrl,
           external_id: account.id,
         }),

@@ -25,7 +25,7 @@ export async function POST(
   // Get account
   const { data: account, error: accountError } = await supabase
     .from("accounts")
-    .select("id, email, company")
+    .select("id, name, email, company")
     .eq("id", id)
     .single();
 
@@ -55,6 +55,7 @@ export async function POST(
         email: account.email,
         company_name: account.company ?? null,
         website_url: websiteUrl,
+        person_name: account.name ?? null,
         webhook_url: `${adminAppUrl}/api/webhooks/enrichment`,
         external_id: account.id,
       }),

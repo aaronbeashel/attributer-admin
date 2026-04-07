@@ -79,15 +79,30 @@ export interface AccountSite {
 export interface AccountEnrichment {
   id: string;
   accountId: string;
+  // Company classification
   industry: string | null;
   subIndustry: string | null;
   companySize: string | null;
   signupPath: string | null;
-  jobTitle: string | null;
-  jobDescription: string | null;
+  employeeCount: number | null;
+  companyDescription: string | null;
+  companyLinkedinUrl: string | null;
+  // Person information
+  jobTitleRaw: string | null;
+  jobRole: string | null;
+  seniorityLevel: string | null;
+  personDescription: string | null;
+  personLocation: string | null;
+  personLinkedinUrl: string | null;
+  yearsExperience: number | null;
+  // Signup analysis
+  emailDomain: string | null;
+  domainsMatch: boolean | null;
+  // Confidence scores
   confidenceIndustry: number | null;
   confidenceSize: number | null;
   confidencePath: number | null;
+  confidencePerson: number | null;
   enrichedAt: string | null;
 }
 
@@ -153,11 +168,22 @@ export async function getAccountEnrichment(accountId: string): Promise<AccountEn
     subIndustry: data.sub_industry,
     companySize: data.company_size,
     signupPath: data.signup_path,
-    jobTitle: data.job_title,
-    jobDescription: data.job_description,
+    employeeCount: data.employee_count,
+    companyDescription: data.company_description,
+    companyLinkedinUrl: data.company_linkedin_url,
+    jobTitleRaw: data.job_title_raw,
+    jobRole: data.job_role,
+    seniorityLevel: data.seniority_level,
+    personDescription: data.person_description,
+    personLocation: data.person_location,
+    personLinkedinUrl: data.person_linkedin_url,
+    yearsExperience: data.years_experience,
+    emailDomain: data.email_domain,
+    domainsMatch: data.domains_match,
     confidenceIndustry: data.confidence_industry,
     confidenceSize: data.confidence_size,
     confidencePath: data.confidence_path,
+    confidencePerson: data.confidence_person,
     enrichedAt: data.enriched_at,
   };
 }

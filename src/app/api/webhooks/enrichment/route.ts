@@ -13,9 +13,17 @@ export async function POST(request: Request) {
     const body = await request.json();
     const {
       external_id, status, job_id,
+      // Company classification
       industry, sub_industry, company_size, signup_path,
-      job_title, job_description,
-      confidence_industry, confidence_size, confidence_path,
+      employee_count, company_description, company_linkedin_url,
+      // Person information
+      job_title_raw, job_role, seniority_level,
+      person_description, person_location, person_linkedin_url,
+      years_experience,
+      // Signup analysis
+      email_domain, domains_match,
+      // Confidence scores
+      confidence_industry, confidence_size, confidence_path, confidence_person,
     } = body;
 
     if (!external_id) {
@@ -42,15 +50,30 @@ export async function POST(request: Request) {
       .upsert(
         {
           account_id: external_id,
+          // Company classification
           industry: industry ?? "Unknown",
           sub_industry: sub_industry ?? null,
           company_size: company_size ?? "Unknown",
           signup_path: signup_path ?? "Unknown",
-          job_title: job_title ?? null,
-          job_description: job_description ?? null,
+          employee_count: employee_count ?? null,
+          company_description: company_description ?? null,
+          company_linkedin_url: company_linkedin_url ?? null,
+          // Person information
+          job_title_raw: job_title_raw ?? null,
+          job_role: job_role ?? null,
+          seniority_level: seniority_level ?? null,
+          person_description: person_description ?? null,
+          person_location: person_location ?? null,
+          person_linkedin_url: person_linkedin_url ?? null,
+          years_experience: years_experience ?? null,
+          // Signup analysis
+          email_domain: email_domain ?? null,
+          domains_match: domains_match ?? null,
+          // Confidence scores
           confidence_industry: confidence_industry ?? 0,
           confidence_size: confidence_size ?? 0,
           confidence_path: confidence_path ?? 0,
+          confidence_person: confidence_person ?? null,
           enriched_at: new Date().toISOString(),
           updated_at: new Date().toISOString(),
         },
@@ -73,11 +96,22 @@ export async function POST(request: Request) {
         subIndustry: sub_industry,
         companySize: company_size,
         signupPath: signup_path,
-        jobTitle: job_title,
-        jobDescription: job_description,
+        employeeCount: employee_count,
+        companyDescription: company_description,
+        companyLinkedinUrl: company_linkedin_url,
+        jobTitleRaw: job_title_raw,
+        jobRole: job_role,
+        seniorityLevel: seniority_level,
+        personDescription: person_description,
+        personLocation: person_location,
+        personLinkedinUrl: person_linkedin_url,
+        yearsExperience: years_experience,
+        emailDomain: email_domain,
+        domainsMatch: domains_match,
         confidenceIndustry: confidence_industry,
         confidenceSize: confidence_size,
         confidencePath: confidence_path,
+        confidencePerson: confidence_person,
       },
       source: "system",
     });
