@@ -43,7 +43,7 @@ export function SubscriptionSection({ accountId, subscription }: SubscriptionSec
       <div className="border-b border-secondary px-4 py-3 sm:px-6 sm:py-4">
         <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
           <h2 className="text-lg font-semibold text-primary">Subscription</h2>
-          <div className="flex flex-wrap items-center gap-2 sm:gap-3">
+          <div className="flex items-center gap-3">
             <Badge color={STATUS_COLORS[subscription.status] ?? "gray"} size="md">
               {subscription.status.charAt(0).toUpperCase() + subscription.status.slice(1)}
             </Badge>
