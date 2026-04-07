@@ -71,7 +71,8 @@ export async function GET(request: Request) {
     }
 
     const normalized = rawRows.map((row) => ({ ...row, domain: normalizeDomain(row.domain) }));
-    const deduplicated = deduplicateDomains(normalized);
+    const deduplicated = deduplicateDomains(normalized)
+      .filter((d) => d.callCount >= 50); // Skip low-traffic noise
 
     const supabase = createSupabaseAdminClient();
     const now = new Date().toISOString();
