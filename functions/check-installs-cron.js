@@ -10,6 +10,7 @@ export default async function handler() {
 
   const res = await fetch(`${adminUrl}/api/cron/check-installs`, {
     headers: { Authorization: `Bearer ${cronSecret}` },
+    signal: AbortSignal.timeout(55000), // 55s timeout — batch of 10 takes ~25s
   });
 
   const data = await res.json();
