@@ -31,7 +31,7 @@ export function SubscriptionActions({
 
   return (
     <>
-      <div className="flex items-center gap-2">
+      <div className="flex flex-wrap items-center gap-2">
         <Button color="secondary" size="sm" onClick={() => setShowChangePlan(true)}>
           Change Plan
         </Button>
