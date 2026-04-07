@@ -44,7 +44,7 @@ export default function AdminLayout({
   const pathname = usePathname();
 
   return (
-    <div className="flex min-h-screen">
+    <div className="flex min-h-screen flex-col lg:flex-row">
       <SidebarNavigationSimple
         activeUrl={pathname}
         items={navItems}
