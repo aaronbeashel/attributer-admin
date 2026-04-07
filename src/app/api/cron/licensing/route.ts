@@ -76,26 +76,34 @@ export async function GET(request: Request) {
     const supabase = createSupabaseAdminClient();
     const now = new Date().toISOString();
 
-    // Step 2: Upsert all domains
-    for (const d of deduplicated) {
+    // Step 2: Upsert all domains in batches of 500
+    for (let i = 0; i < deduplicated.length; i += 500) {
+      const batch = deduplicated.slice(i, i + 500).map((d) => ({
+        domain: d.domain,
+        call_count: d.callCount,
+        last_seen_at: now,
+        updated_at: now,
+      }));
       await supabase
         .from("licensing_domains")
-        .upsert(
-          {
-            domain: d.domain,
-            call_count: d.callCount,
-            last_seen_at: now,
-            updated_at: now,
-          },
-          { onConflict: "domain", ignoreDuplicates: false }
-        );
+        .upsert(batch, { onConflict: "domain", ignoreDuplicates: false });
     }
 
-    // Step 3: Fast checks on 'new' domains
-    const { data: newDomains } = await supabase
-      .from("licensing_domains")
-      .select("id, domain")
-      .eq("status", "new");
+    // Step 3: Fast checks on 'new' domains (fetch all, not just default 1000)
+    const allNewDomains: Array<{ id: string; domain: string }> = [];
+    let offset = 0;
+    while (true) {
+      const { data: batch } = await supabase
+        .from("licensing_domains")
+        .select("id, domain")
+        .eq("status", "new")
+        .range(offset, offset + 999);
+      if (!batch || batch.length === 0) break;
+      allNewDomains.push(...batch);
+      if (batch.length < 1000) break;
+      offset += 1000;
+    }
+    const newDomains = allNewDomains;
 
     if (newDomains && newDomains.length > 0) {
       const licensedIds = new Set<string>();
@@ -149,10 +157,20 @@ export async function GET(request: Request) {
     }
 
     // Step 4: Re-check 'licensed' domains (subscription may have been cancelled)
-    const { data: licensedDomains } = await supabase
-      .from("licensing_domains")
-      .select("id, domain")
-      .eq("status", "licensed");
+    const allLicensedDomains: Array<{ id: string; domain: string }> = [];
+    let licOffset = 0;
+    while (true) {
+      const { data: batch } = await supabase
+        .from("licensing_domains")
+        .select("id, domain")
+        .eq("status", "licensed")
+        .range(licOffset, licOffset + 999);
+      if (!batch || batch.length === 0) break;
+      allLicensedDomains.push(...batch);
+      if (batch.length < 1000) break;
+      licOffset += 1000;
+    }
+    const licensedDomains = allLicensedDomains;
 
     if (licensedDomains && licensedDomains.length > 0) {
       for (const d of licensedDomains) {
@@ -166,10 +184,20 @@ export async function GET(request: Request) {
     }
 
     // Step 5: Re-check 'blocked' domains (may have been unblocked)
-    const { data: blockedDomains } = await supabase
-      .from("licensing_domains")
-      .select("id, domain")
-      .eq("status", "blocked");
+    const allBlockedDomains: Array<{ id: string; domain: string }> = [];
+    let blkOffset = 0;
+    while (true) {
+      const { data: batch } = await supabase
+        .from("licensing_domains")
+        .select("id, domain")
+        .eq("status", "blocked")
+        .range(blkOffset, blkOffset + 999);
+      if (!batch || batch.length === 0) break;
+      allBlockedDomains.push(...batch);
+      if (batch.length < 1000) break;
+      blkOffset += 1000;
+    }
+    const blockedDomains = allBlockedDomains;
 
     if (blockedDomains && blockedDomains.length > 0) {
       const recheck = await checkBlockedDomains(blockedDomains.map((d) => d.domain));
