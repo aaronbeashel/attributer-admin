@@ -52,7 +52,7 @@ export default function AdminLayout({
         showAccountCard={false}
       />
       <main className="flex-1 overflow-auto">
-        <div className="mx-auto max-w-7xl px-4 py-6 lg:px-8 lg:py-8">
+        <div className="mx-auto max-w-7xl px-4 py-4 sm:py-6 lg:px-8 lg:py-8">
           {children}
         </div>
       </main>

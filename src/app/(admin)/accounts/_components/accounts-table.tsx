@@ -78,8 +78,8 @@ export function AccountsTable({
   return (
     <div className="rounded-xl border border-secondary bg-primary shadow-xs">
       {/* Filters Bar */}
-      <div className="flex flex-wrap items-center gap-3 border-b border-secondary px-6 py-4">
-        <div className="flex-1">
+      <div className="flex flex-col gap-3 border-b border-secondary px-4 py-3 sm:flex-row sm:flex-wrap sm:items-center sm:px-6 sm:py-4">
+        <div className="w-full sm:flex-1">
           <form
             onSubmit={(e) => {
               e.preventDefault();
@@ -91,38 +91,86 @@ export function AccountsTable({
               icon={SearchLg}
               value={search}
               onChange={setSearch}
-              className="max-w-sm"
+              className="sm:max-w-sm"
             />
           </form>
         </div>
-        <select
-          value={planFilter}
-          onChange={(e) => updateParams({ plan: e.target.value })}
-          className="rounded-lg border border-secondary bg-primary px-3 py-2 text-sm text-secondary"
-        >
-          <option value="">All Plans</option>
-          {plans.map((plan) => (
-            <option key={plan} value={plan}>
-              {plan}
-            </option>
-          ))}
-        </select>
-        <select
-          value={statusFilter}
-          onChange={(e) => updateParams({ status: e.target.value })}
-          className="rounded-lg border border-secondary bg-primary px-3 py-2 text-sm text-secondary"
-        >
-          <option value="">All Statuses</option>
-          {statuses.map((status) => (
-            <option key={status} value={status}>
-              {status.charAt(0).toUpperCase() + status.slice(1)}
-            </option>
-          ))}
-        </select>
+        <div className="flex gap-3">
+          <select
+            value={planFilter}
+            onChange={(e) => updateParams({ plan: e.target.value })}
+            className="flex-1 rounded-lg border border-secondary bg-primary px-3 py-2 text-sm text-secondary sm:flex-none"
+          >
+            <option value="">All Plans</option>
+            {plans.map((plan) => (
+              <option key={plan} value={plan}>
+                {plan}
+              </option>
+            ))}
+          </select>
+          <select
+            value={statusFilter}
+            onChange={(e) => updateParams({ status: e.target.value })}
+            className="flex-1 rounded-lg border border-secondary bg-primary px-3 py-2 text-sm text-secondary sm:flex-none"
+          >
+            <option value="">All Statuses</option>
+            {statuses.map((status) => (
+              <option key={status} value={status}>
+                {status.charAt(0).toUpperCase() + status.slice(1)}
+              </option>
+            ))}
+          </select>
+        </div>
       </div>
 
-      {/* Table */}
-      <div className="overflow-x-auto">
+      {/* Mobile Card List */}
+      <div className="divide-y divide-secondary sm:hidden">
+        {accounts.length === 0 ? (
+          <p className="px-4 py-12 text-center text-sm text-tertiary">No accounts found.</p>
+        ) : (
+          accounts.map((account) => (
+            <Link
+              key={account.id}
+              href={`/accounts/${account.id}`}
+              className="flex items-center justify-between px-4 py-3 transition-colors hover:bg-secondary active:bg-secondary"
+            >
+              <div className="min-w-0 flex-1">
+                <p className="truncate text-sm font-medium text-primary">
+                  {account.company || account.name}
+                </p>
+                <p className="mt-0.5 truncate text-sm text-tertiary">{account.email}</p>
+                <div className="mt-1.5 flex flex-wrap items-center gap-1.5">
+                  {account.planName && (
+                    <Badge color="brand" size="sm">
+                      {account.planName}
+                    </Badge>
+                  )}
+                  {account.subscriptionStatus && (
+                    <Badge
+                      color={STATUS_COLORS[account.subscriptionStatus] ?? "gray"}
+                      size="sm"
+                    >
+                      {account.subscriptionStatus.charAt(0).toUpperCase() +
+                        account.subscriptionStatus.slice(1)}
+                    </Badge>
+                  )}
+                </div>
+              </div>
+              <div className="ml-3 shrink-0 text-right">
+                <p className="text-sm font-medium text-primary">
+                  {account.planPriceCents ? formatCurrency(account.planPriceCents) : "—"}
+                </p>
+                <p className="mt-0.5 text-xs text-quaternary">
+                  {formatDate(account.createdAt)}
+                </p>
+              </div>
+            </Link>
+          ))
+        )}
+      </div>
+
+      {/* Desktop Table */}
+      <div className="hidden overflow-x-auto sm:block">
         <table className="w-full">
           <thead>
             <tr className="border-b border-secondary bg-secondary">
@@ -216,7 +264,7 @@ export function AccountsTable({
 
       {/* Pagination */}
       {totalPages > 1 && (
-        <div className="flex items-center justify-between border-t border-secondary px-6 py-4">
+        <div className="flex flex-col items-center gap-3 border-t border-secondary px-4 py-3 sm:flex-row sm:justify-between sm:px-6 sm:py-4">
           <p className="text-sm text-tertiary">
             Showing {(currentPage - 1) * PAGE_SIZE + 1}–
             {Math.min(currentPage * PAGE_SIZE, totalCount)} of {totalCount}

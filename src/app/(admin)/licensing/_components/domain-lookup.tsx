@@ -60,14 +60,14 @@ export function DomainLookup() {
   return (
     <div className="space-y-4">
       {/* Search */}
-      <div className="flex gap-2">
+      <div className="flex flex-col gap-2 sm:flex-row">
         <input
           type="text"
           placeholder="Enter a domain (e.g. acme.com)"
           value={domain}
           onChange={(e) => setDomain(e.target.value)}
           onKeyDown={(e) => e.key === "Enter" && handleLookup()}
-          className="w-full max-w-md rounded-lg border border-secondary bg-primary px-4 py-2 text-sm text-primary shadow-xs placeholder:text-placeholder"
+          className="w-full rounded-lg border border-secondary bg-primary px-4 py-2 text-sm text-primary shadow-xs placeholder:text-placeholder sm:max-w-md"
         />
         <Button color="primary" size="md" onClick={handleLookup} isLoading={loading}>
           Look up
@@ -81,10 +81,10 @@ export function DomainLookup() {
       )}
 
       {result && (
-        <div className="rounded-xl border border-secondary bg-primary p-6">
-          <div className="flex items-start justify-between gap-4">
+        <div className="rounded-xl border border-secondary bg-primary p-4 sm:p-6">
+          <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between sm:gap-4">
             <div>
-              <h3 className="text-lg font-semibold text-primary">{result.domain}</h3>
+              <h3 className="break-all text-lg font-semibold text-primary">{result.domain}</h3>
               <div className="mt-2 flex flex-wrap gap-2">
                 {result.isBlocked ? (
                   <Badge color="error" size="md">Blocked</Badge>

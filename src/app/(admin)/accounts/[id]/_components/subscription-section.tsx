@@ -14,7 +14,7 @@ function Field({ label, value, href }: { label: string; value: string | null; hr
   return (
     <div>
       <dt className="text-sm text-tertiary">{label}</dt>
-      <dd className="mt-1 text-sm font-medium text-primary">
+      <dd className="mt-1 break-all text-sm font-medium text-primary">
         {href && value ? (
           <a href={href} target="_blank" rel="noopener noreferrer" className="text-brand-primary hover:underline">
             {value}
@@ -40,8 +40,8 @@ export function SubscriptionSection({ accountId, subscription }: SubscriptionSec
 
   return (
     <div className="rounded-xl border border-secondary bg-primary">
-      <div className="border-b border-secondary px-6 py-4">
-        <div className="flex items-center justify-between">
+      <div className="border-b border-secondary px-4 py-3 sm:px-6 sm:py-4">
+        <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
           <h2 className="text-lg font-semibold text-primary">Subscription</h2>
           <div className="flex items-center gap-3">
             <Badge color={STATUS_COLORS[subscription.status] ?? "gray"} size="md">
@@ -60,7 +60,7 @@ export function SubscriptionSection({ accountId, subscription }: SubscriptionSec
       </div>
 
       {isCancelled && (
-        <div className="border-b border-error-secondary bg-error-secondary px-6 py-3">
+        <div className="border-b border-error-secondary bg-error-secondary px-4 py-3 sm:px-6">
           <p className="text-sm font-medium text-error-primary">
             Cancelled{subscription.cancellationReason ? `: ${subscription.cancellationReason}` : ""}
           </p>
@@ -70,7 +70,7 @@ export function SubscriptionSection({ accountId, subscription }: SubscriptionSec
         </div>
       )}
 
-      <div className="grid grid-cols-2 gap-6 px-6 py-5 lg:grid-cols-3">
+      <div className="grid grid-cols-1 gap-4 px-4 py-4 sm:grid-cols-2 sm:gap-6 sm:px-6 sm:py-5 lg:grid-cols-3">
         <Field label="Plan" value={subscription.planName} />
         <Field label="Price" value={formatCurrency(subscription.planPriceCents, subscription.planCurrency)} />
         <Field label="Trial Type" value={subscription.trialType} />
