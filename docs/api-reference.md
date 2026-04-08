@@ -471,6 +471,351 @@ The URL opens the customer app logged in as the account owner. Session expires i
 
 ---
 
+## Search
+
+### GET /api/search
+
+Search for accounts by name, email, or company.
+
+**Query Parameters:**
+| Param | Type | Required | Description |
+|-------|------|----------|-------------|
+| q | string | Yes | Search query (minimum 2 characters) |
+
+**Response (200):**
+```json
+{
+  "results": [
+    {
+      "id": "uuid",
+      "name": "Jane Smith",
+      "email": "jane@acme.com",
+      "company": "Acme Corp",
+      "planName": "Starter",
+      "status": "active",
+      "matchType": "exact"
+    }
+  ]
+}
+```
+
+Returns up to 8 matching accounts. Matches against email, name, and company (case-insensitive). Returns empty `results` array if query is missing or under 2 characters.
+
+---
+
+## Data Enrichment
+
+### POST /api/account/:id/enrich
+
+Request enrichment of account data. This kicks off an async job — results arrive via the enrichment webhook.
+
+**Request Body:** None required
+
+**Response (200):**
+```json
+{
+  "success": true,
+  "jobId": "job_xxx",
+  "message": "Enrichment requested — results will arrive via webhook"
+}
+```
+
+**Errors:** `404` account not found, `500` enrichment service not configured, `502` enrichment service unreachable or returned an error
+
+---
+
+## Licensing / Domain Blocking
+
+### GET /api/account/:id/licensing
+
+Check domain blocking status for all sites under an account. Queries the licensing server in real time.
+
+**Response (200):**
+```json
+{
+  "sites": [
+    {
+      "siteId": "uuid",
+      "name": "Main Site",
+      "domain": "acme.com",
+      "siteStatus": "active",
+      "isBlocked": false,
+      "blockedAt": null
+    }
+  ]
+}
+```
+
+`isBlocked` and `blockedAt` come from the licensing server. Returns empty `sites` array if the account has no sites with domains.
+
+**Errors:** `404` account not found, `500` failed to fetch sites
+
+---
+
+### POST /api/licensing/action
+
+Block, unblock, or dismiss a domain on the licensing server. Records an audit trail in the database.
+
+**Request Body:**
+| Field | Type | Required | Description |
+|-------|------|----------|-------------|
+| domain | string | Yes | The domain to act on (e.g., `"example.com"`) |
+| action | string | Yes | `"blocked"`, `"unblocked"`, or `"dismissed"` |
+| reason | string | No | Reason for the action |
+| notes | string | No | Additional notes |
+
+**Response (200):**
+```json
+{
+  "success": true
+}
+```
+
+**Behaviour by action:**
+- `"blocked"` — calls the licensing server to block the domain, sets status to `blocked` in the database
+- `"unblocked"` — calls the licensing server to unblock the domain, resets status to `pending_check`
+- `"dismissed"` — does NOT call the licensing server, just sets status to `dismissed` (domain won't be re-checked)
+
+**Errors:** `400` missing domain or invalid action, `500` failed to process
+
+---
+
+### GET /api/licensing/domains
+
+Get domains filtered by status, with counts across all status categories.
+
+**Query Parameters:**
+| Param | Type | Required | Description |
+|-------|------|----------|-------------|
+| status | string | No | Filter by status (default: `"confirmed_unlicensed"`). See status values below. |
+| search | string | No | Filter domains by substring match (case-insensitive) |
+| minCalls | number | No | Minimum call count threshold (default: `0`) |
+
+**Status values:** `confirmed_unlicensed`, `pending_check`, `blocked`, `dismissed`, `licensed`, `not_installed`, `check_failed`
+
+**Response (200):**
+```json
+{
+  "domains": [
+    {
+      "id": "uuid",
+      "domain": "example.com",
+      "callCount": 1250,
+      "lastSeenAt": "2025-03-28T00:00:00Z",
+      "isLicensed": false,
+      "isBlocked": false,
+      "scriptInstalled": true,
+      "scriptCheckedAt": "2025-03-27T12:00:00Z",
+      "checkError": null,
+      "status": "confirmed_unlicensed",
+      "accountId": "uuid",
+      "accountName": "Acme Corp",
+      "accountEmail": "jane@acme.com",
+      "reviewNote": null,
+      "reviewedAt": null,
+      "reviewedBy": null,
+      "createdAt": "2025-03-01T00:00:00Z"
+    }
+  ],
+  "counts": {
+    "confirmed_unlicensed": 42,
+    "pending_check": 15,
+    "blocked": 8,
+    "dismissed": 3,
+    "licensed": 120,
+    "not_installed": 55,
+    "check_failed": 2
+  }
+}
+```
+
+Returns up to 200 domains per request, sorted by call count (descending). `counts` always includes all status categories regardless of the filter.
+
+---
+
+### GET /api/licensing/lookup
+
+Look up blocking history for a specific domain from the licensing server.
+
+**Query Parameters:**
+| Param | Type | Required | Description |
+|-------|------|----------|-------------|
+| domain | string | Yes | Domain to look up (e.g., `"example.com"`) |
+
+**Response (200) — domain found:**
+```json
+{
+  "domain": "example.com",
+  "isBlocked": true,
+  "inSystem": true,
+  "lastBlocked": "2025-03-20T10:00:00Z",
+  "lastUnblocked": null,
+  "history": [
+    { "action": "blocked", "date": "2025-03-20T10:00:00Z" }
+  ]
+}
+```
+
+**Response (200) — domain never been in block list:**
+```json
+{
+  "domain": "example.com",
+  "isBlocked": false,
+  "inSystem": false,
+  "history": []
+}
+```
+
+**Errors:** `400` domain parameter missing, `502` licensing server unreachable or returned an error
+
+---
+
+### POST /api/licensing/process
+
+Upload and process a CSV file of domains for licensing analysis.
+
+**Request Body:** `multipart/form-data`
+| Field | Type | Required | Description |
+|-------|------|----------|-------------|
+| file | File | Yes | CSV file containing domains and call counts |
+
+**Response (200):**
+```json
+{
+  "success": true,
+  "totalRows": 500,
+  "uniqueDomains": 423,
+  "message": "Domains imported. Fast checks and install verification will run via cron."
+}
+```
+
+Domains are normalized and deduplicated before import. Status checks (licensed, blocked, install verification) run via the licensing cron job.
+
+**Errors:** `400` no file provided or no valid rows in CSV, `500` processing failed
+
+---
+
+### GET /api/licensing/scans
+
+Get the latest licensing scan results.
+
+**Response (200):**
+```json
+{
+  "scan": {
+    "id": "uuid",
+    "scanType": "weekly",
+    "totalRows": 1200,
+    "uniqueDomains": 980,
+    "unlicensedCount": 42,
+    "results": { ... },
+    "createdAt": "2025-03-28T02:00:00Z"
+  }
+}
+```
+
+Returns `{ "scan": null }` if no scans have been recorded yet.
+
+---
+
+## Cron Jobs
+
+These endpoints are triggered by a cron scheduler and are **not intended for direct use** by external apps. They use a separate `CRON_SECRET` for authentication.
+
+**Authentication:** `Authorization: Bearer <CRON_SECRET>`
+
+### GET /api/cron/enrich
+
+Batch-enrich accounts that haven't been enriched yet. Processes up to 50 accounts per run.
+
+**Response (200):**
+```json
+{
+  "success": true,
+  "total": 50,
+  "sent": 48,
+  "failed": 2
+}
+```
+
+---
+
+### GET /api/cron/licensing
+
+Weekly licensing pipeline. Fetches the domain report CSV from the licensing server, checks license and block status, and submits pending domains for install verification.
+
+**Pipeline steps:**
+1. Fetch and parse CSV from licensing server (domains with 50+ calls)
+2. Upsert domains into database
+3. Check new domains: mark as `licensed`, `blocked`, or `pending_check`
+4. Re-check `licensed` domains (reset to `pending_check` if subscription cancelled)
+5. Re-check `blocked` domains (reset to `pending_check` if unblocked externally)
+6. Reset `check_failed` domains to `pending_check` for retry
+7. Submit all `pending_check` domains to install checker service
+
+**Response (200):**
+```json
+{
+  "success": true,
+  "totalRows": 1200,
+  "uniqueDomains": 980,
+  "pendingInstallCheck": 45,
+  "batchSubmitted": true
+}
+```
+
+---
+
+## Webhooks
+
+These endpoints receive data from external services and are **not intended for direct use**. Each uses its own secret for authentication.
+
+### POST /api/webhooks/enrichment
+
+Receives enrichment results from the enrichment service.
+
+**Authentication:** `Authorization: Bearer <ENRICHMENT_API_KEY>`
+
+**Payload fields:** `external_id` (required), `status`, `job_id`, `industry`, `sub_industry`, `company_size`, `signup_path`, `employee_count`, `company_description`, `company_linkedin_url`, `job_title_raw`, `job_role`, `seniority_level`, `person_description`, `person_location`, `person_linkedin_url`, `years_experience`, `email_domain`, `domains_match`, `confidence_industry`, `confidence_size`, `confidence_path`, `confidence_person`
+
+**Response (200):**
+```json
+{
+  "success": true
+}
+```
+
+**Errors:** `400` missing external_id, `401` unauthorized, `404` account not found, `500` failed to update
+
+---
+
+### POST /api/webhooks/checker
+
+Receives domain install check results from the checker service.
+
+**Authentication:** `Authorization: Bearer <CHECKER_WEBHOOK_SECRET>`
+
+**Payload fields:**
+| Field | Type | Required | Description |
+|-------|------|----------|-------------|
+| domain | string | Yes | The domain that was checked (may include protocol, will be normalized) |
+| removed | boolean/null | Yes | `false` = script installed (confirmed unlicensed), `true` = not installed, `null` = check failed |
+| error | string | No | Error message if check failed |
+| checkedAt | string | No | ISO timestamp of when the check was performed |
+
+**Response (200):**
+```json
+{
+  "success": true
+}
+```
+
+**Status mapping:** `removed: false` → `confirmed_unlicensed`, `removed: true` → `not_installed`, `removed: null` → `check_failed`
+
+**Errors:** `400` missing domain, `401` unauthorized, `500` internal error
+
+---
+
 ## Common Patterns
 
 ### Typical workflow: Handle a support ticket
@@ -503,3 +848,6 @@ Stripe-specific errors also include:
 | Trial extend | Safe but additive — each call moves the date further |
 | Owner transfer | Yes — updating to same values is a no-op |
 | Password reset | Yes — sends another email |
+| Enrich | Safe — enrichment service handles dedup by job |
+| Licensing action | **Use caution** — blocking/unblocking is toggled on the licensing server each time |
+| Licensing process | Safe but additive — re-importing a CSV upserts domains (updates call counts) |
