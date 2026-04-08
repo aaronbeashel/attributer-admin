@@ -9,7 +9,7 @@ interface MetricCardProps {
 
 export function MetricCard({ label, value, change, changePositive }: MetricCardProps) {
   return (
-    <div className="rounded-xl border border-secondary bg-primary p-6">
+    <div className="rounded-xl border border-secondary bg-primary p-4 sm:p-6">
       <p className="text-sm font-medium text-tertiary">{label}</p>
       <p className="mt-2 text-display-sm font-semibold text-primary">{value}</p>
       {change && (

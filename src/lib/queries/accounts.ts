@@ -41,12 +41,27 @@ export async function getAccountsList(params: AccountsListParams = {}): Promise<
   const supabase = createSupabaseAdminClient();
   const offset = (page - 1) * pageSize;
 
+  // Use !inner join when filtering on subscription fields so the filter
+  // happens at the database level (before pagination), not client-side.
+  const needsInnerJoin = !!(planFilter || statusFilter);
+  const subscriptionJoin = needsInnerJoin
+    ? "subscriptions!inner(plan_name, plan_price_cents, status)"
+    : "subscriptions(plan_name, plan_price_cents, status)";
+
   // Build the query
   let query = supabase
     .from("accounts")
-    .select("id, name, email, company, created_at, cancelled_at, subscriptions(plan_name, plan_price_cents, status)", {
+    .select(`id, name, email, company, created_at, cancelled_at, ${subscriptionJoin}`, {
       count: "exact",
     });
+
+  // Apply subscription-level filters via the joined table
+  if (statusFilter) {
+    query = query.eq("subscriptions.status", statusFilter);
+  }
+  if (planFilter) {
+    query = query.ilike("subscriptions.plan_name", planFilter);
+  }
 
   // Apply search filter (email, name, or company)
   if (search) {
@@ -90,14 +105,6 @@ export async function getAccountsList(params: AccountsListParams = {}): Promise<
       subscriptionStatus: sub?.status ?? null,
     };
   });
-
-  // Client-side filtering for subscription fields (PostgREST can't filter on joined tables easily)
-  if (planFilter) {
-    accounts = accounts.filter((a) => a.planName?.toLowerCase() === planFilter.toLowerCase());
-  }
-  if (statusFilter) {
-    accounts = accounts.filter((a) => a.subscriptionStatus?.toLowerCase() === statusFilter.toLowerCase());
-  }
 
   return {
     accounts,

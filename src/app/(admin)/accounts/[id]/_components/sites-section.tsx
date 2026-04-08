@@ -61,13 +61,73 @@ export function SitesSection({ sites, accountId }: SitesSectionProps) {
 
   return (
     <div className="rounded-xl border border-secondary bg-primary">
-      <div className="flex items-center justify-between border-b border-secondary px-6 py-4">
+      <div className="flex items-center justify-between border-b border-secondary px-4 py-3 sm:px-6 sm:py-4">
         <h2 className="text-lg font-semibold text-primary">Sites</h2>
         <Badge color="gray" size="sm">
           {sites.filter((s) => s.status === "active").length} active
         </Badge>
       </div>
-      <div className="overflow-x-auto">
+
+      {/* Mobile Card List */}
+      <div className="divide-y divide-secondary sm:hidden">
+        {sites.length === 0 ? (
+          <p className="px-4 py-8 text-center text-sm text-tertiary">No sites configured</p>
+        ) : (
+          sites.map((site) => {
+            const lic = site.domain ? licensing[site.domain] : undefined;
+            return (
+              <div key={site.id} className="px-4 py-3">
+                <div className="flex items-start justify-between gap-2">
+                  <div className="min-w-0">
+                    <div className="flex items-center gap-2">
+                      <span className="text-sm font-medium text-primary">{site.name}</span>
+                      {site.isDefault && <Badge color="gray" size="sm">Default</Badge>}
+                    </div>
+                    {site.domain && (
+                      <a
+                        href={`https://${site.domain}`}
+                        target="_blank"
+                        rel="noopener noreferrer"
+                        className="mt-0.5 block break-all text-sm text-brand-primary hover:underline"
+                      >
+                        {site.domain}
+                      </a>
+                    )}
+                    <div className="mt-1.5 flex flex-wrap items-center gap-1.5">
+                      <Badge color={site.status === "active" ? "success" : "gray"} size="sm">
+                        {site.status.charAt(0).toUpperCase() + site.status.slice(1)}
+                      </Badge>
+                      {!loadingLicensing && site.domain && (
+                        lic?.isBlocked ? (
+                          <Badge color="error" size="sm">Blocked</Badge>
+                        ) : (
+                          <Badge color="success" size="sm">Unblocked</Badge>
+                        )
+                      )}
+                    </div>
+                  </div>
+                  <div className="shrink-0">
+                    {site.domain && !loadingLicensing && (
+                      lic?.isBlocked ? (
+                        <Button color="secondary" size="sm" onClick={() => handleLicensingAction(site.domain!, "unblocked")}>
+                          Unblock
+                        </Button>
+                      ) : (
+                        <Button color="secondary-destructive" size="sm" onClick={() => handleLicensingAction(site.domain!, "blocked")}>
+                          Block
+                        </Button>
+                      )
+                    )}
+                  </div>
+                </div>
+              </div>
+            );
+          })
+        )}
+      </div>
+
+      {/* Desktop Table */}
+      <div className="hidden overflow-x-auto sm:block">
         <table className="w-full">
           <thead>
             <tr className="border-b border-secondary bg-secondary">

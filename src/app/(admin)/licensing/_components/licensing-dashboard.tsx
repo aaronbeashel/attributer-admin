@@ -16,10 +16,10 @@ export function LicensingDashboard() {
   return (
     <div className="space-y-6">
       {/* Tab Navigation */}
-      <div className="flex items-center gap-1 rounded-lg border border-secondary bg-secondary p-1">
+      <div className="flex items-center gap-1 overflow-x-auto rounded-lg border border-secondary bg-secondary p-1">
         <button
           onClick={() => setActiveTab("scan")}
-          className={`rounded-md px-4 py-2 text-sm font-medium transition-colors ${
+          className={`shrink-0 rounded-md px-3 py-2 text-sm font-medium transition-colors sm:px-4 ${
             activeTab === "scan"
               ? "bg-primary text-primary shadow-xs"
               : "text-tertiary hover:text-primary"
@@ -29,7 +29,7 @@ export function LicensingDashboard() {
         </button>
         <button
           onClick={() => setActiveTab("blocked")}
-          className={`rounded-md px-4 py-2 text-sm font-medium transition-colors ${
+          className={`shrink-0 rounded-md px-3 py-2 text-sm font-medium transition-colors sm:px-4 ${
             activeTab === "blocked"
               ? "bg-primary text-primary shadow-xs"
               : "text-tertiary hover:text-primary"
@@ -39,7 +39,7 @@ export function LicensingDashboard() {
         </button>
         <button
           onClick={() => setActiveTab("lookup")}
-          className={`rounded-md px-4 py-2 text-sm font-medium transition-colors ${
+          className={`shrink-0 rounded-md px-3 py-2 text-sm font-medium transition-colors sm:px-4 ${
             activeTab === "lookup"
               ? "bg-primary text-primary shadow-xs"
               : "text-tertiary hover:text-primary"

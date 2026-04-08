@@ -36,7 +36,7 @@ function LinkField({ label, url }: { label: string; url: string | null }) {
       <dt className="text-sm text-tertiary">{label}</dt>
       <dd className="mt-1">
         {url ? (
-          <a href={url} target="_blank" rel="noopener noreferrer" className="text-sm font-medium text-brand hover:underline">
+          <a href={url} target="_blank" rel="noopener noreferrer" className="break-all text-sm font-medium text-brand hover:underline">
             {url}
           </a>
         ) : (
@@ -56,8 +56,8 @@ export function EnrichmentSection({ accountId, enrichment }: EnrichmentSectionPr
 
   return (
     <div className="rounded-xl border border-secondary bg-primary">
-      <div className="border-b border-secondary px-6 py-4">
-        <div className="flex items-center justify-between">
+      <div className="border-b border-secondary px-4 py-3 sm:px-6 sm:py-4">
+        <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
           <h2 className="text-lg font-semibold text-primary">AI Enrichment</h2>
           <div className="flex items-center gap-3">
             {enrichment?.enrichedAt && (
@@ -70,7 +70,7 @@ export function EnrichmentSection({ accountId, enrichment }: EnrichmentSectionPr
         </div>
       </div>
       {hasEnrichment ? (
-        <div className="grid grid-cols-2 gap-6 px-6 py-5 lg:grid-cols-3">
+        <div className="grid grid-cols-1 gap-4 px-4 py-4 sm:grid-cols-2 sm:gap-6 sm:px-6 sm:py-5 lg:grid-cols-3">
           {/* Company Classification */}
           <SectionHeader title="Company" />
           <Field label="Industry" value={enrichment!.industry} confidence={enrichment!.confidenceIndustry} />

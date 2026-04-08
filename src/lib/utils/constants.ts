@@ -47,8 +47,7 @@ export const STATUS_COLORS: Record<string, "success" | "warning" | "error" | "gr
   trialing: "warning",
   cancelled: "error",
   past_due: "error",
-  delinquent: "error",
-  inactive: "gray",
+  deactivated: "gray",
 };
 
 export const SUBSCRIPTION_STATUSES: Record<string, string> = {
@@ -56,8 +55,7 @@ export const SUBSCRIPTION_STATUSES: Record<string, string> = {
   trialing: "Trialing",
   cancelled: "Cancelled",
   past_due: "Past Due",
-  delinquent: "Delinquent",
-  inactive: "Inactive",
+  deactivated: "Deactivated",
 };
 
 export const CARDLESS_CONVERSION_RATE = 0.3;

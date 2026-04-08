@@ -64,7 +64,7 @@ export function BlockedSites() {
         placeholder="Search blocked domains..."
         value={search}
         onChange={(e) => setSearch(e.target.value)}
-        className="w-full max-w-md rounded-lg border border-secondary bg-primary px-4 py-2 text-sm text-primary shadow-xs placeholder:text-placeholder"
+        className="w-full rounded-lg border border-secondary bg-primary px-4 py-2 text-sm text-primary shadow-xs placeholder:text-placeholder sm:max-w-md"
       />
 
       {loading ? (
@@ -75,7 +75,33 @@ export function BlockedSites() {
         </div>
       ) : (
         <div className="rounded-xl border border-secondary bg-primary shadow-xs">
-          <div className="overflow-x-auto">
+          {/* Mobile Card List */}
+          <div className="divide-y divide-secondary sm:hidden">
+            {domains.map((d) => (
+              <div key={d.id} className="px-4 py-3">
+                <div className="flex items-start justify-between gap-2">
+                  <div className="min-w-0">
+                    <p className="break-all text-sm font-medium text-primary">{d.domain}</p>
+                    <p className="mt-0.5 text-xs text-quaternary">
+                      {d.callCount.toLocaleString()} calls
+                      {d.reviewedAt && ` · Blocked ${new Date(d.reviewedAt).toLocaleDateString()}`}
+                    </p>
+                    {d.accountId && (
+                      <Link href={`/accounts/${d.accountId}`} className="mt-0.5 block text-sm text-brand-primary hover:underline">
+                        {d.accountName}
+                      </Link>
+                    )}
+                  </div>
+                  <Button color="secondary" size="sm" onClick={() => handleUnblock(d.domain)}>
+                    Unblock
+                  </Button>
+                </div>
+              </div>
+            ))}
+          </div>
+
+          {/* Desktop Table */}
+          <div className="hidden overflow-x-auto sm:block">
             <table className="w-full">
               <thead>
                 <tr className="border-b border-secondary bg-secondary">

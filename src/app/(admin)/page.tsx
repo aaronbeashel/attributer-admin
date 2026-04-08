@@ -56,18 +56,18 @@ export default async function DashboardPage() {
       <div className="mt-8 grid grid-cols-1 gap-6 lg:grid-cols-2">
         {/* Recent Signups */}
         <div className="rounded-xl border border-secondary bg-primary">
-          <div className="border-b border-secondary px-6 py-4">
+          <div className="border-b border-secondary px-4 py-3 sm:px-6 sm:py-4">
             <h2 className="text-lg font-semibold text-primary">Recent Signups</h2>
           </div>
           <div className="divide-y divide-secondary">
             {recentSignups.length === 0 ? (
-              <p className="px-6 py-8 text-center text-sm text-tertiary">No recent signups</p>
+              <p className="px-4 py-8 text-center text-sm text-tertiary sm:px-6">No recent signups</p>
             ) : (
               recentSignups.map((account) => (
                 <Link
                   key={account.id}
                   href={`/accounts/${account.id}`}
-                  className="flex items-center justify-between px-6 py-3 transition-colors hover:bg-primary-hover"
+                  className="flex items-center justify-between px-4 py-3 transition-colors hover:bg-primary-hover sm:px-6"
                 >
                   <div className="min-w-0">
                     <p className="truncate text-sm font-medium text-primary">
@@ -75,7 +75,7 @@ export default async function DashboardPage() {
                     </p>
                     <p className="truncate text-sm text-tertiary">{account.email}</p>
                   </div>
-                  <div className="ml-4 flex shrink-0 flex-col items-end">
+                  <div className="ml-3 flex shrink-0 flex-col items-end sm:ml-4">
                     {account.planName && (
                       <span className="inline-flex items-center rounded-full bg-brand-secondary px-2 py-0.5 text-xs font-medium text-brand-primary">
                         {account.planName}
@@ -93,18 +93,18 @@ export default async function DashboardPage() {
 
         {/* Recent Cancellations */}
         <div className="rounded-xl border border-secondary bg-primary">
-          <div className="border-b border-secondary px-6 py-4">
+          <div className="border-b border-secondary px-4 py-3 sm:px-6 sm:py-4">
             <h2 className="text-lg font-semibold text-primary">Recent Cancellations</h2>
           </div>
           <div className="divide-y divide-secondary">
             {recentCancellations.length === 0 ? (
-              <p className="px-6 py-8 text-center text-sm text-tertiary">No recent cancellations</p>
+              <p className="px-4 py-8 text-center text-sm text-tertiary sm:px-6">No recent cancellations</p>
             ) : (
               recentCancellations.map((account) => (
                 <Link
                   key={account.id}
                   href={`/accounts/${account.id}`}
-                  className="flex items-center justify-between px-6 py-3 transition-colors hover:bg-primary-hover"
+                  className="flex items-center justify-between px-4 py-3 transition-colors hover:bg-primary-hover sm:px-6"
                 >
                   <div className="min-w-0">
                     <p className="truncate text-sm font-medium text-primary">
@@ -112,7 +112,7 @@ export default async function DashboardPage() {
                     </p>
                     <p className="truncate text-sm text-tertiary">{account.email}</p>
                   </div>
-                  <div className="ml-4 flex shrink-0 flex-col items-end">
+                  <div className="ml-3 flex shrink-0 flex-col items-end sm:ml-4">
                     {account.planName && (
                       <span className="inline-flex items-center rounded-full bg-error-secondary px-2 py-0.5 text-xs font-medium text-error-primary">
                         {account.planName}
