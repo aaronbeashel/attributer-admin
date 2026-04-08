@@ -5,7 +5,6 @@ import Link from "next/link";
 import { toast } from "sonner";
 import { Badge } from "@/components/base/badges/badges";
 import { Button } from "@/components/base/buttons/button";
-import { getStripeDashboardUrl } from "@/lib/stripe";
 
 interface LicensingDomain {
   id: string;
@@ -15,6 +14,7 @@ interface LicensingDomain {
   isLicensed: boolean;
   isBlocked: boolean;
   scriptInstalled: boolean | null;
+  checkError: string | null;
   status: string;
   accountId: string | null;
   accountName: string | null;
@@ -33,6 +33,13 @@ interface StatusCounts {
 }
 
 function getReasonText(domain: LicensingDomain): string {
+  if (domain.status === "check_failed") {
+    const errorDetail = domain.checkError ? ` — ${domain.checkError}` : "";
+    if (!domain.accountId) {
+      return `Cannot determine if code is installed${errorDetail}. Unknown domain, not linked to any Attributer account.`;
+    }
+    return `Cannot determine if code is installed${errorDetail}. Cancelled or expired customer, subscription no longer active.`;
+  }
   if (!domain.accountId) {
     return "Unknown domain — not linked to any Attributer account. Script detected on site.";
   }
@@ -66,7 +73,12 @@ function DomainCard({
 
       {/* Badges */}
       <div className="mt-3 flex flex-wrap gap-2">
-        <Badge color="success" size="sm">Code On Site ✓</Badge>
+        {domain.status === "confirmed_unlicensed" && (
+          <Badge color="success" size="sm">Code On Site ✓</Badge>
+        )}
+        {domain.status === "check_failed" && (
+          <Badge color="warning" size="sm">Code Status Unknown</Badge>
+        )}
         <Badge color="gray" size="sm">Not Blocked</Badge>
         {domain.accountId ? (
           <Badge color="brand" size="sm">Has Account</Badge>
@@ -138,10 +150,17 @@ export function ScanResults() {
 
   const fetchDomains = useCallback(async () => {
     try {
-      const res = await fetch(`/api/licensing/domains?status=confirmed_unlicensed&minCalls=${minCalls}`);
-      const data = await res.json();
-      setDomains(data.domains ?? []);
-      setCounts(data.counts ?? null);
+      // Fetch both confirmed_unlicensed and check_failed domains
+      const [confirmedRes, failedRes] = await Promise.all([
+        fetch(`/api/licensing/domains?status=confirmed_unlicensed&minCalls=${minCalls}`),
+        fetch(`/api/licensing/domains?status=check_failed&minCalls=${minCalls}`),
+      ]);
+      const confirmedData = await confirmedRes.json();
+      const failedData = await failedRes.json();
+
+      // Merge domains, confirmed first then failed
+      setDomains([...(confirmedData.domains ?? []), ...(failedData.domains ?? [])]);
+      setCounts(confirmedData.counts ?? failedData.counts ?? null);
     } catch {
       toast.error("Failed to load scan results");
     } finally {
@@ -164,7 +183,7 @@ export function ScanResults() {
       if (res.ok) {
         setDomains((prev) => prev.filter((d) => d.domain !== domain));
         toast.success(action === "blocked" ? `Blocked ${domain}` : `Dismissed ${domain}`);
-        fetchDomains(); // Refresh counts
+        fetchDomains();
       }
     } catch {
       toast.error(`Failed to ${action} ${domain}`);
@@ -180,8 +199,9 @@ export function ScanResults() {
       {/* Status Summary */}
       {counts && (
         <div className="flex flex-wrap gap-3">
-          <Badge color="error" size="md">{counts.confirmed_unlicensed} need review</Badge>
-          <Badge color="warning" size="md">{counts.pending_check} pending check</Badge>
+          <Badge color="error" size="md">{counts.confirmed_unlicensed} confirmed unlicensed</Badge>
+          <Badge color="warning" size="md">{counts.check_failed} could not verify</Badge>
+          <Badge color="gray" size="md">{counts.pending_check} pending check</Badge>
           <Badge color="gray" size="md">{counts.blocked} blocked</Badge>
           <Badge color="gray" size="md">{counts.dismissed} dismissed</Badge>
         </div>
@@ -206,7 +226,7 @@ export function ScanResults() {
         <div className="rounded-xl border border-secondary bg-primary px-6 py-8 text-center">
           <p className="text-sm text-tertiary">
             {counts && counts.pending_check > 0
-              ? `No confirmed unlicensed domains yet. ${counts.pending_check} domains are pending install check.`
+              ? `No results yet. ${counts.pending_check} domains are pending install check — results will appear as the checker service processes them.`
               : "No unlicensed domains found. All clear!"}
           </p>
         </div>

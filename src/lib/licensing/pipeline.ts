@@ -1,6 +1,5 @@
 import { createSupabaseAdminClient } from "@/lib/supabase/admin";
 import { checkBlockedDomains, type BlocklistCheckResult } from "@/lib/external/blocklist";
-import { checkInstallBatch, type InstallCheckResult } from "@/lib/external/install-checker";
 
 export interface PipelineResult {
   domain: string;
@@ -65,17 +64,6 @@ export async function filterBlockedDomains(
   return map;
 }
 
-export async function checkInstalls(
-  domains: string[]
-): Promise<Map<string, InstallCheckResult>> {
-  const results = await checkInstallBatch(domains);
-  const map = new Map<string, InstallCheckResult>();
-  for (const r of results) {
-    map.set(r.domain, r);
-  }
-  return map;
-}
-
 export async function getPriorReviews(
   domains: string[]
 ): Promise<Map<string, { action: string; actionedAt: string }>> {
@@ -122,46 +110,5 @@ export async function getAccountContext(
   return map;
 }
 
-export async function runPipeline(
-  domains: { domain: string; callCount: number }[]
-): Promise<PipelineResult[]> {
-  // Step 1: Filter licensed domains (DB query — fast)
-  // Only domains with active/trialing subscriptions are considered licensed
-  const withLicense = await filterLicensedDomains(domains);
-  const unlicensed = withLicense.filter((d) => !d.isLicensed);
-  const unlicensedDomains = unlicensed.map((d) => d.domain);
-
-  if (unlicensedDomains.length === 0) {
-    return [];
-  }
-
-  // Step 2: Check blocklist (licensing server — fast)
-  const blockedMap = await filterBlockedDomains(unlicensedDomains);
-
-  // Step 3: Get prior reviews (DB query — fast)
-  const reviewMap = await getPriorReviews(unlicensedDomains);
-
-  // Step 4: Filter out blocked and reviewed domains before the expensive check
-  const needsInstallCheck = unlicensedDomains.filter((domain) => {
-    const isBlocked = blockedMap.get(domain)?.isBlocked ?? false;
-    const hasReview = reviewMap.has(domain);
-    return !isBlocked && !hasReview;
-  });
-
-  // Step 5: Check script installs ONLY on remaining domains (checker service — slow)
-  const installMap = await checkInstalls(needsInstallCheck);
-
-  // Step 6: Get account context for all unlicensed domains (DB query — fast)
-  const contextMap = await getAccountContext(unlicensedDomains);
-
-  // Build results (all unlicensed domains, including blocked/reviewed for display)
-  return unlicensed.map((d) => ({
-    domain: d.domain,
-    callCount: d.callCount,
-    isLicensed: false,
-    isBlocked: blockedMap.get(d.domain)?.isBlocked ?? false,
-    scriptFound: installMap.get(d.domain)?.scriptFound ?? false,
-    priorReview: reviewMap.get(d.domain) ?? null,
-    accountContext: contextMap.get(d.domain) ?? null,
-  }));
-}
+// Note: runPipeline was removed — the licensing cron handles the pipeline
+// directly and uses the batch webhook system for install checking.

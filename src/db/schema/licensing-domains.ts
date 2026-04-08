@@ -9,6 +9,7 @@ export const licensingDomains = pgTable("licensing_domains", {
   isBlocked: boolean("is_blocked").notNull().default(false),
   scriptInstalled: boolean("script_installed"),
   scriptCheckedAt: timestamp("script_checked_at", { withTimezone: true }),
+  checkError: varchar("check_error"),
   status: varchar("status").notNull().default("new"),
   accountId: uuid("account_id"),
   accountName: varchar("account_name"),

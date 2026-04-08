@@ -3,6 +3,7 @@ import { createSupabaseAdminClient } from "@/lib/supabase/admin";
 import { parseCSV } from "@/lib/licensing/process-csv";
 import { normalizeDomain, deduplicateDomains } from "@/lib/licensing/normalize";
 import { checkBlockedDomains } from "@/lib/external/blocklist";
+import { submitBatchCheck } from "@/lib/external/install-checker";
 
 // Helper: check if a domain has a licensed account (active/trialing subscription)
 async function checkDomainLicensed(
@@ -215,8 +216,44 @@ export async function GET(request: Request) {
 
     // Step 6: Reset 'check_failed' to 'pending_check' for retry
     await supabase.from("licensing_domains").update({
-      status: "pending_check", updated_at: now,
+      status: "pending_check", check_error: null, updated_at: now,
     }).eq("status", "check_failed");
+
+    // Step 7: Submit all pending_check domains to checker service via batch
+    const adminAppUrl = process.env.ADMIN_APP_URL;
+    const webhookSecret = process.env.CHECKER_WEBHOOK_SECRET;
+    let batchSubmitted = false;
+
+    if (adminAppUrl && webhookSecret) {
+      const allPending: Array<{ domain: string }> = [];
+      let pendOffset = 0;
+      while (true) {
+        const { data: batch } = await supabase
+          .from("licensing_domains")
+          .select("domain")
+          .eq("status", "pending_check")
+          .range(pendOffset, pendOffset + 999);
+        if (!batch || batch.length === 0) break;
+        allPending.push(...batch);
+        if (batch.length < 1000) break;
+        pendOffset += 1000;
+      }
+
+      if (allPending.length > 0) {
+        const webhookUrl = `${adminAppUrl}/api/webhooks/checker`;
+        try {
+          const batchResult = await submitBatchCheck(
+            allPending.map((d) => d.domain),
+            webhookUrl,
+            webhookSecret
+          );
+          console.log(`[cron/licensing] Submitted batch ${batchResult.batch_id}: ${batchResult.total} domains`);
+          batchSubmitted = true;
+        } catch (err) {
+          console.error("[cron/licensing] Failed to submit batch check:", err);
+        }
+      }
+    }
 
     // Get counts for response
     const { count: pendingCount } = await supabase
@@ -229,6 +266,7 @@ export async function GET(request: Request) {
       totalRows: rawRows.length,
       uniqueDomains: deduplicated.length,
       pendingInstallCheck: pendingCount ?? 0,
+      batchSubmitted,
     });
   } catch (err) {
     console.error("[cron/licensing] Error:", err);

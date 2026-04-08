@@ -77,8 +77,8 @@ describe("POST /api/webhooks/enrichment", () => {
       sub_industry: "Residential",
       company_size: "11-50",
       signup_path: "agency",
-      job_title: "Marketing Manager",
-      job_description: "Manages digital campaigns",
+      job_title_raw: "Marketing Manager",
+      person_description: "Manages digital campaigns",
       confidence_industry: 85,
       confidence_size: 60,
       confidence_path: 95,
@@ -92,7 +92,7 @@ describe("POST /api/webhooks/enrichment", () => {
         sub_industry: "Residential",
         company_size: "11-50",
         signup_path: "agency",
-        job_title: "Marketing Manager",
+        job_title_raw: "Marketing Manager",
       }),
       { onConflict: "account_id" }
     );

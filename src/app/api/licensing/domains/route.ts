@@ -50,6 +50,7 @@ export async function GET(request: Request) {
       isBlocked: d.is_blocked,
       scriptInstalled: d.script_installed,
       scriptCheckedAt: d.script_checked_at,
+      checkError: d.check_error,
       status: d.status,
       accountId: d.account_id,
       accountName: d.account_name,

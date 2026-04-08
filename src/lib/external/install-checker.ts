@@ -54,19 +54,46 @@ export async function checkInstall(domain: string): Promise<InstallCheckResult> 
   }
 }
 
-export async function checkInstallBatch(domains: string[]): Promise<InstallCheckResult[]> {
-  // Run sequentially to respect 30 req/min rate limit
-  const results: InstallCheckResult[] = [];
+export interface BatchCheckResponse {
+  batch_id: string;
+  total: number;
+  status: string;
+}
 
-  for (const domain of domains) {
-    const result = await checkInstall(domain);
-    results.push(result);
+/** Submit a batch of domains for async checking via webhook callbacks */
+export async function submitBatchCheck(
+  domains: string[],
+  webhookUrl: string,
+  webhookSecret: string
+): Promise<BatchCheckResponse> {
+  const checkerUrl = process.env.ATTRIBUTER_CHECKER_URL;
+  const apiKey = process.env.ATTRIBUTER_CHECKER_API_KEY;
 
-    // Small delay between requests to stay under rate limit
-    if (domains.indexOf(domain) < domains.length - 1) {
-      await new Promise((resolve) => setTimeout(resolve, 2100)); // ~28 req/min
-    }
+  if (!checkerUrl || !apiKey) {
+    throw new Error("Checker service not configured");
   }
 
-  return results;
+  // ATTRIBUTER_CHECKER_URL points to /check — derive base URL for /check-batch
+  const baseUrl = checkerUrl.replace(/\/check$/, "");
+
+  const res = await fetch(`${baseUrl}/check-batch`, {
+    method: "POST",
+    headers: {
+      "Content-Type": "application/json",
+      "x-api-key": apiKey,
+    },
+    body: JSON.stringify({
+      urls: domains,
+      webhook_url: webhookUrl,
+      webhook_secret: webhookSecret,
+    }),
+    signal: AbortSignal.timeout(15000),
+  });
+
+  if (!res.ok) {
+    const text = await res.text();
+    throw new Error(`Batch submit failed: HTTP ${res.status} - ${text}`);
+  }
+
+  return res.json();
 }
