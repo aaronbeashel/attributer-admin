@@ -24,7 +24,7 @@ export async function checkInstall(domain: string): Promise<InstallCheckResult> 
         "x-api-key": apiKey,
       },
       body: JSON.stringify({ url: domain }),
-      signal: AbortSignal.timeout(30000), // 30s — checker can take 6-10s per domain
+      signal: AbortSignal.timeout(15000), // 15s — checker normally takes 6-10s, fail fast on slow ones
     });
 
     if (res.status === 429) {

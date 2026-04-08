@@ -11,7 +11,7 @@ export async function GET(request: Request) {
   const supabase = createSupabaseAdminClient();
   const now = new Date().toISOString();
   const startTime = Date.now();
-  const MAX_RUNTIME_MS = 50000; // Stop after 50 seconds to ensure we return a response
+  const MAX_RUNTIME_MS = 45000; // Stop after 45 seconds to ensure response before Railway's 60s proxy timeout
 
   // Pick up pending domains, highest call count first
   const { data: pending, error } = await supabase
