@@ -6,10 +6,11 @@ import Link from "next/link";
 import { Badge } from "@/components/base/badges/badges";
 import { Button } from "@/components/base/buttons/button";
 import { Input } from "@/components/base/input/input";
+import { Select } from "@/components/base/select/select";
 import { SearchLg, ChevronLeft, ChevronRight } from "@untitledui/icons";
 import type { AccountListItem } from "@/lib/queries/accounts";
 import { formatDate, formatCurrency } from "@/lib/utils/format";
-import { STATUS_COLORS } from "@/lib/utils/constants";
+import { STATUS_COLORS, SUBSCRIPTION_STATUSES } from "@/lib/utils/constants";
 
 interface AccountsTableProps {
   accounts: AccountListItem[];
@@ -21,7 +22,6 @@ interface AccountsTableProps {
   sortBy: string;
   sortOrder: "asc" | "desc";
   plans: string[];
-  statuses: string[];
 }
 
 const PAGE_SIZE = 25;
@@ -36,7 +36,6 @@ export function AccountsTable({
   sortBy,
   sortOrder,
   plans,
-  statuses,
 }: AccountsTableProps) {
   const router = useRouter();
   const searchParams = useSearchParams();
@@ -96,30 +95,30 @@ export function AccountsTable({
           </form>
         </div>
         <div className="flex gap-3">
-          <select
-            value={planFilter}
-            onChange={(e) => updateParams({ plan: e.target.value })}
-            className="flex-1 rounded-lg border border-secondary bg-primary px-3 py-2 text-sm text-secondary sm:flex-none"
+          <Select
+            size="sm"
+            placeholder="All Plans"
+            selectedKey={planFilter || null}
+            onSelectionChange={(key) => updateParams({ plan: key === null ? "" : String(key) })}
+            className="w-44"
           >
-            <option value="">All Plans</option>
+            <Select.Item id="" label="All Plans" />
             {plans.map((plan) => (
-              <option key={plan} value={plan}>
-                {plan}
-              </option>
+              <Select.Item key={plan} id={plan} label={plan} />
             ))}
-          </select>
-          <select
-            value={statusFilter}
-            onChange={(e) => updateParams({ status: e.target.value })}
-            className="flex-1 rounded-lg border border-secondary bg-primary px-3 py-2 text-sm text-secondary sm:flex-none"
+          </Select>
+          <Select
+            size="sm"
+            placeholder="All Statuses"
+            selectedKey={statusFilter || null}
+            onSelectionChange={(key) => updateParams({ status: key === null ? "" : String(key) })}
+            className="w-44"
           >
-            <option value="">All Statuses</option>
-            {statuses.map((status) => (
-              <option key={status} value={status}>
-                {status.charAt(0).toUpperCase() + status.slice(1)}
-              </option>
+            <Select.Item id="" label="All Statuses" />
+            {Object.entries(SUBSCRIPTION_STATUSES).map(([value, label]) => (
+              <Select.Item key={value} id={value} label={label} />
             ))}
-          </select>
+          </Select>
         </div>
       </div>
 

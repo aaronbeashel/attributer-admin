@@ -1,7 +1,7 @@
 export const dynamic = "force-dynamic";
 
 import { Suspense } from "react";
-import { getAccountsList, getDistinctPlans, getDistinctStatuses } from "@/lib/queries/accounts";
+import { getAccountsList, getDistinctPlans } from "@/lib/queries/accounts";
 import { AccountsTable } from "./_components/accounts-table";
 
 interface AccountsPageProps {
@@ -24,10 +24,9 @@ export default async function AccountsPage({ searchParams }: AccountsPageProps) 
   const sortBy = params.sort || "created_at";
   const sortOrder = (params.order || "desc") as "asc" | "desc";
 
-  const [{ accounts, totalCount }, plans, statuses] = await Promise.all([
+  const [{ accounts, totalCount }, plans] = await Promise.all([
     getAccountsList({ page, search, planFilter, statusFilter, sortBy, sortOrder }),
     getDistinctPlans(),
-    getDistinctStatuses(),
   ]);
 
   return (
@@ -49,7 +48,6 @@ export default async function AccountsPage({ searchParams }: AccountsPageProps) 
             sortBy={sortBy}
             sortOrder={sortOrder}
             plans={plans}
-            statuses={statuses}
           />
         </Suspense>
       </div>
