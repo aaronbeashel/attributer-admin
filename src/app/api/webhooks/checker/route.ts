@@ -1,5 +1,6 @@
 import { NextResponse } from "next/server";
 import { createSupabaseAdminClient } from "@/lib/supabase/admin";
+import { normalizeDomain } from "@/lib/licensing/normalize";
 
 export async function POST(request: Request) {
   // Validate webhook secret
@@ -10,11 +11,14 @@ export async function POST(request: Request) {
 
   try {
     const body = await request.json();
-    const { domain, removed, error: checkError, checkedAt } = body;
+    const { domain: rawDomain, removed, error: checkError, checkedAt } = body;
 
-    if (!domain) {
+    if (!rawDomain) {
       return NextResponse.json({ error: "domain is required" }, { status: 400 });
     }
+
+    // Normalize domain — the checker service returns "https://example.com" but we store "example.com"
+    const domain = normalizeDomain(rawDomain);
 
     const supabase = createSupabaseAdminClient();
     const now = new Date().toISOString();
