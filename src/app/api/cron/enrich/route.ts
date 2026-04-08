@@ -40,17 +40,6 @@ export async function GET(request: Request) {
 
   for (const account of accounts) {
     try {
-      // Look up first active site for website_url
-      const { data: sites } = await supabase
-        .from("sites")
-        .select("website_url")
-        .eq("account_id", account.id)
-        .eq("status", "active")
-        .order("created_at", { ascending: true })
-        .limit(1);
-
-      const websiteUrl = sites?.[0]?.website_url ?? null;
-
       const res = await fetch(`${enrichmentUrl}/api/enrich`, {
         method: "POST",
         headers: {
@@ -60,8 +49,8 @@ export async function GET(request: Request) {
         body: JSON.stringify({
           email: account.email,
           company_name: account.company ?? null,
-          website_url: websiteUrl,
-          person_name: account.name ?? null,
+          website_url: account.website_url ?? null,
+          person_name: account.person_name ?? null,
           webhook_url: webhookUrl,
           external_id: account.id,
         }),
