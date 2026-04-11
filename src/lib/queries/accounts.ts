@@ -63,11 +63,35 @@ export async function getAccountsList(params: AccountsListParams = {}): Promise<
     query = query.ilike("subscriptions.plan_name", planFilter);
   }
 
-  // Apply search filter (email, name, or company)
+  // Global search: fan out across accounts, sites, and users to collect
+  // matching account IDs, then restrict the main query to those IDs.
   if (search) {
-    query = query.or(
-      `email.ilike.%${search}%,name.ilike.%${search}%,company.ilike.%${search}%`
-    );
+    const pattern = `%${search}%`;
+    const [accountMatches, siteMatches, userMatches] = await Promise.all([
+      supabase
+        .from("accounts")
+        .select("id")
+        .or(`email.ilike.${pattern},name.ilike.${pattern},company.ilike.${pattern}`),
+      supabase
+        .from("sites")
+        .select("account_id")
+        .or(`domain.ilike.${pattern},name.ilike.${pattern},website_url.ilike.${pattern}`),
+      supabase
+        .from("users")
+        .select("account_id")
+        .or(`email.ilike.${pattern},first_name.ilike.${pattern},last_name.ilike.${pattern}`),
+    ]);
+
+    const matchedIds = new Set<string>();
+    (accountMatches.data ?? []).forEach((r) => r.id && matchedIds.add(r.id));
+    (siteMatches.data ?? []).forEach((r) => r.account_id && matchedIds.add(r.account_id));
+    (userMatches.data ?? []).forEach((r) => r.account_id && matchedIds.add(r.account_id));
+
+    if (matchedIds.size === 0) {
+      return { accounts: [], totalCount: 0 };
+    }
+
+    query = query.in("id", Array.from(matchedIds));
   }
 
   // Apply sorting
