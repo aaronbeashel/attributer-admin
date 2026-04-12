@@ -219,6 +219,14 @@ export async function GET(request: Request) {
       status: "pending_check", check_error: null, updated_at: now,
     }).eq("status", "check_failed");
 
+    // Step 6b: Reset 'not_installed' to 'pending_check' for re-verification.
+    // Domains that were marked as having no script installed might have had
+    // the script re-added since last check. We re-check them each run to
+    // catch sites that removed the script during review then re-installed it.
+    await supabase.from("licensing_domains").update({
+      status: "pending_check", script_installed: null, updated_at: now,
+    }).eq("status", "not_installed");
+
     // Step 7: Submit all pending_check domains to checker service via batch
     const adminAppUrl = process.env.ADMIN_APP_URL;
     const webhookSecret = process.env.CHECKER_WEBHOOK_SECRET;
