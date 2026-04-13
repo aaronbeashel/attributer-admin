@@ -91,14 +91,18 @@ export async function GET(request: Request) {
         .upsert(batch, { onConflict: "domain", ignoreDuplicates: false });
     }
 
-    // Step 3: Fast checks on 'new' domains (fetch all, not just default 1000)
+    // Step 3: Fast checks on 'new' AND 'pending_check' domains (fetch all, not just default 1000)
+    // Running on pending_check too ensures that domains stuck from a previous run
+    // get re-verified against the sites/subscriptions tables before going to the checker.
+    // This catches cases where a domain was 'pending_check' but has since become
+    // a paying customer (or is linked to an existing active subscription).
     const allNewDomains: Array<{ id: string; domain: string }> = [];
     let offset = 0;
     while (true) {
       const { data: batch } = await supabase
         .from("licensing_domains")
         .select("id, domain")
-        .eq("status", "new")
+        .in("status", ["new", "pending_check"])
         .range(offset, offset + 999);
       if (!batch || batch.length === 0) break;
       allNewDomains.push(...batch);
