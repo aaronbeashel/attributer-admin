@@ -1,6 +1,7 @@
 import { Badge } from "@/components/base/badges/badges";
 import type { AccountUser, AccountDetail } from "@/lib/queries/account-detail";
 import { formatDate, formatRelativeTime } from "@/lib/utils/format";
+import { CopyableEmail } from "../../_components/copyable-email";
 import { UserActions } from "./user-actions";
 
 interface UsersSectionProps {
@@ -24,7 +25,9 @@ export function UsersSection({ users, account }: UsersSectionProps) {
               <div className="flex items-start justify-between gap-2">
                 <div className="min-w-0">
                   <p className="text-sm font-medium text-primary">{user.name}</p>
-                  <p className="mt-0.5 truncate text-sm text-tertiary">{user.email}</p>
+                  <div className="mt-0.5 text-sm text-tertiary">
+                    <CopyableEmail email={user.email} />
+                  </div>
                   <div className="mt-1.5 flex flex-wrap items-center gap-1.5">
                     <Badge color="gray" size="sm">{user.role}</Badge>
                     <Badge color="gray" size="sm">
@@ -69,7 +72,9 @@ export function UsersSection({ users, account }: UsersSectionProps) {
               users.map((user) => (
                 <tr key={user.id}>
                   <td className="px-6 py-4 text-sm font-medium text-primary">{user.name}</td>
-                  <td className="px-6 py-4 text-sm text-tertiary">{user.email}</td>
+                  <td className="px-6 py-4 text-sm text-tertiary">
+                    <CopyableEmail email={user.email} />
+                  </td>
                   <td className="px-6 py-4">
                     <Badge color="gray" size="sm">
                       {user.role}

@@ -11,6 +11,7 @@ import { SearchLg, ChevronLeft, ChevronRight } from "@untitledui/icons";
 import type { AccountListItem } from "@/lib/queries/accounts";
 import { formatDate, formatCurrency } from "@/lib/utils/format";
 import { STATUS_COLORS, SUBSCRIPTION_STATUSES } from "@/lib/utils/constants";
+import { CopyableEmail } from "./copyable-email";
 
 interface AccountsTableProps {
   accounts: AccountListItem[];
@@ -137,7 +138,9 @@ export function AccountsTable({
                 <p className="truncate text-sm font-medium text-primary">
                   {account.company || account.name}
                 </p>
-                <p className="mt-0.5 truncate text-sm text-tertiary">{account.email}</p>
+                <div className="mt-0.5 text-sm text-tertiary">
+                  <CopyableEmail email={account.email} />
+                </div>
                 <div className="mt-1.5 flex flex-wrap items-center gap-1.5">
                   {account.planName && (
                     <Badge color="brand" size="sm">
@@ -223,7 +226,9 @@ export function AccountsTable({
                       )}
                     </div>
                   </td>
-                  <td className="px-6 py-4 text-sm text-tertiary">{account.email}</td>
+                  <td className="px-6 py-4 text-sm text-tertiary">
+                    <CopyableEmail email={account.email} />
+                  </td>
                   <td className="px-6 py-4">
                     {account.planName ? (
                       <Badge color="brand" size="sm">

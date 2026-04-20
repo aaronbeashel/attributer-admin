@@ -2,6 +2,7 @@ import { Badge } from "@/components/base/badges/badges";
 import type { AccountDetail, AccountSubscription } from "@/lib/queries/account-detail";
 import { formatDate } from "@/lib/utils/format";
 import { STATUS_COLORS } from "@/lib/utils/constants";
+import { CopyableEmail } from "../../_components/copyable-email";
 import { AccountActions } from "./account-actions";
 
 interface AccountHeaderProps {
@@ -28,7 +29,7 @@ export function AccountHeader({ account, subscription, sites }: AccountHeaderPro
           )}
         </div>
         <div className="mt-1 flex flex-col gap-0.5 text-sm text-tertiary sm:flex-row sm:items-center sm:gap-4">
-          <span className="truncate">{account.email}</span>
+          <CopyableEmail email={account.email} className="truncate" />
           <span>ID: {account.id.slice(0, 8)}...</span>
           <span>Created {formatDate(account.createdAt)}</span>
         </div>
