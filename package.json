@@ -14,6 +14,7 @@
   "dependencies": {
     "@internationalized/date": "^3.12.0",
     "@react-stately/utils": "^3.11.0",
+    "@react-types/overlays": "^3.9.4",
     "@supabase/ssr": "^0.9.0",
     "@supabase/supabase-js": "^2.98.0",
     "@tailwindcss/typography": "^0.5.19",
