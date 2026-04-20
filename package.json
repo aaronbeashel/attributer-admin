@@ -26,7 +26,7 @@
     "qr-code-styling": "^1.9.2",
     "react": "19.2.3",
     "react-aria": "^3.47.0",
-    "react-aria-components": "^1.16.0",
+    "react-aria-components": "^1.17.0",
     "react-dom": "19.2.3",
     "react-hotkeys-hook": "^5.2.4",
     "recharts": "^3.7.0",

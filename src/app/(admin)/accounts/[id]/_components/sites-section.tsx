@@ -3,9 +3,8 @@
 import { useEffect, useState } from "react";
 import { toast } from "sonner";
 import { Badge } from "@/components/base/badges/badges";
-import { Button } from "@/components/base/buttons/button";
 import type { AccountSite } from "@/lib/queries/account-detail";
-import { formatDate } from "@/lib/utils/format";
+import { SiteDetailsCard, SiteDetailsDrawer } from "./site-details";
 
 interface SitesSectionProps {
   sites: AccountSite[];
@@ -16,9 +15,16 @@ interface LicensingStatus {
   [domain: string]: { isBlocked: boolean; blockedAt: string | null };
 }
 
+function resolveToolValue(value: string | null, other: string | null): string | null {
+  if (!value) return null;
+  if (value.toLowerCase() === "other" && other) return other;
+  return value;
+}
+
 export function SitesSection({ sites, accountId }: SitesSectionProps) {
   const [licensing, setLicensing] = useState<LicensingStatus>({});
   const [loadingLicensing, setLoadingLicensing] = useState(true);
+  const [selectedSiteId, setSelectedSiteId] = useState<string | null>(null);
 
   useEffect(() => {
     let cancelled = false;
@@ -59,6 +65,31 @@ export function SitesSection({ sites, accountId }: SitesSectionProps) {
     }
   }
 
+  if (sites.length === 0) {
+    return (
+      <div className="rounded-xl border border-secondary bg-primary">
+        <div className="flex items-center justify-between border-b border-secondary px-4 py-3 sm:px-6 sm:py-4">
+          <h2 className="text-lg font-semibold text-primary">Sites</h2>
+        </div>
+        <p className="px-4 py-8 text-center text-sm text-tertiary">No sites configured</p>
+      </div>
+    );
+  }
+
+  if (sites.length === 1) {
+    const site = sites[0];
+    return (
+      <SiteDetailsCard
+        site={site}
+        licensing={site.domain ? licensing[site.domain] : undefined}
+        loadingLicensing={loadingLicensing}
+        onLicensingAction={handleLicensingAction}
+      />
+    );
+  }
+
+  const selectedSite = sites.find((s) => s.id === selectedSiteId) ?? null;
+
   return (
     <div className="rounded-xl border border-secondary bg-primary">
       <div className="flex items-center justify-between border-b border-secondary px-4 py-3 sm:px-6 sm:py-4">
@@ -70,60 +101,41 @@ export function SitesSection({ sites, accountId }: SitesSectionProps) {
 
       {/* Mobile Card List */}
       <div className="divide-y divide-secondary sm:hidden">
-        {sites.length === 0 ? (
-          <p className="px-4 py-8 text-center text-sm text-tertiary">No sites configured</p>
-        ) : (
-          sites.map((site) => {
-            const lic = site.domain ? licensing[site.domain] : undefined;
-            return (
-              <div key={site.id} className="px-4 py-3">
-                <div className="flex items-start justify-between gap-2">
-                  <div className="min-w-0">
-                    <div className="flex items-center gap-2">
-                      <span className="text-sm font-medium text-primary">{site.name}</span>
-                      {site.isDefault && <Badge color="gray" size="sm">Default</Badge>}
-                    </div>
-                    {site.domain && (
-                      <a
-                        href={`https://${site.domain}`}
-                        target="_blank"
-                        rel="noopener noreferrer"
-                        className="mt-0.5 block break-all text-sm text-brand-primary hover:underline"
-                      >
-                        {site.domain}
-                      </a>
-                    )}
-                    <div className="mt-1.5 flex flex-wrap items-center gap-1.5">
-                      <Badge color={site.status === "active" ? "success" : "gray"} size="sm">
-                        {site.status.charAt(0).toUpperCase() + site.status.slice(1)}
-                      </Badge>
-                      {!loadingLicensing && site.domain && (
-                        lic?.isBlocked ? (
-                          <Badge color="error" size="sm">Blocked</Badge>
-                        ) : (
-                          <Badge color="success" size="sm">Unblocked</Badge>
-                        )
-                      )}
-                    </div>
+        {sites.map((site) => {
+          const lic = site.domain ? licensing[site.domain] : undefined;
+          return (
+            <button
+              key={site.id}
+              type="button"
+              onClick={() => setSelectedSiteId(site.id)}
+              className="block w-full px-4 py-3 text-left hover:bg-secondary"
+            >
+              <div className="flex items-start justify-between gap-2">
+                <div className="min-w-0">
+                  <div className="flex items-center gap-2">
+                    <span className="text-sm font-medium text-primary">{site.name}</span>
+                    {site.isDefault && <Badge color="gray" size="sm">Default</Badge>}
                   </div>
-                  <div className="shrink-0">
-                    {site.domain && !loadingLicensing && (
+                  {site.domain && (
+                    <span className="mt-0.5 block break-all text-sm text-tertiary">{site.domain}</span>
+                  )}
+                  <div className="mt-1.5 flex flex-wrap items-center gap-1.5">
+                    <Badge color={site.status === "active" ? "success" : "gray"} size="sm">
+                      {site.status.charAt(0).toUpperCase() + site.status.slice(1)}
+                    </Badge>
+                    {!loadingLicensing && site.domain && (
                       lic?.isBlocked ? (
-                        <Button color="secondary" size="sm" onClick={() => handleLicensingAction(site.domain!, "unblocked")}>
-                          Unblock
-                        </Button>
+                        <Badge color="error" size="sm">Blocked</Badge>
                       ) : (
-                        <Button color="secondary-destructive" size="sm" onClick={() => handleLicensingAction(site.domain!, "blocked")}>
-                          Block
-                        </Button>
+                        <Badge color="success" size="sm">Unblocked</Badge>
                       )
                     )}
                   </div>
                 </div>
               </div>
-            );
-          })
-        )}
+            </button>
+          );
+        })}
       </div>
 
       {/* Desktop Table */}
@@ -133,81 +145,75 @@ export function SitesSection({ sites, accountId }: SitesSectionProps) {
             <tr className="border-b border-secondary bg-secondary">
               <th className="px-6 py-3 text-left text-xs font-semibold text-quaternary">Name</th>
               <th className="px-6 py-3 text-left text-xs font-semibold text-quaternary">Domain</th>
+              <th className="px-6 py-3 text-left text-xs font-semibold text-quaternary">Form Tool</th>
+              <th className="px-6 py-3 text-left text-xs font-semibold text-quaternary">CRM</th>
               <th className="px-6 py-3 text-left text-xs font-semibold text-quaternary">Status</th>
               <th className="px-6 py-3 text-left text-xs font-semibold text-quaternary">Licensing</th>
-              <th className="px-6 py-3 text-right text-xs font-semibold text-quaternary">Actions</th>
             </tr>
           </thead>
           <tbody className="divide-y divide-secondary">
-            {sites.length === 0 ? (
-              <tr>
-                <td colSpan={5} className="px-6 py-8 text-center text-sm text-tertiary">
-                  No sites configured
-                </td>
-              </tr>
-            ) : (
-              sites.map((site) => {
-                const lic = site.domain ? licensing[site.domain] : undefined;
-                return (
-                  <tr key={site.id}>
-                    <td className="px-6 py-4">
-                      <div className="flex items-center gap-2">
-                        <span className="text-sm font-medium text-primary">{site.name}</span>
-                        {site.isDefault && (
-                          <Badge color="gray" size="sm">Default</Badge>
-                        )}
-                      </div>
-                    </td>
-                    <td className="px-6 py-4 text-sm text-tertiary">
-                      {site.domain ? (
-                        <a
-                          href={`https://${site.domain}`}
-                          target="_blank"
-                          rel="noopener noreferrer"
-                          className="text-brand-primary hover:underline"
-                        >
-                          {site.domain}
-                        </a>
-                      ) : (
-                        "—"
+            {sites.map((site) => {
+              const lic = site.domain ? licensing[site.domain] : undefined;
+              const formTool = resolveToolValue(site.formTool, site.formToolOther);
+              const crm = resolveToolValue(site.crm, site.crmOther);
+              return (
+                <tr
+                  key={site.id}
+                  onClick={() => setSelectedSiteId(site.id)}
+                  className="cursor-pointer hover:bg-secondary"
+                >
+                  <td className="px-6 py-4">
+                    <div className="flex items-center gap-2">
+                      <span className="text-sm font-medium text-primary">{site.name}</span>
+                      {site.isDefault && (
+                        <Badge color="gray" size="sm">Default</Badge>
                       )}
-                    </td>
-                    <td className="px-6 py-4">
-                      <Badge color={site.status === "active" ? "success" : "gray"} size="sm">
-                        {site.status.charAt(0).toUpperCase() + site.status.slice(1)}
-                      </Badge>
-                    </td>
-                    <td className="px-6 py-4">
-                      {loadingLicensing ? (
-                        <span className="text-xs text-quaternary">Checking...</span>
-                      ) : !site.domain ? (
-                        <span className="text-xs text-quaternary">—</span>
-                      ) : lic?.isBlocked ? (
-                        <Badge color="error" size="sm">Blocked</Badge>
-                      ) : (
-                        <Badge color="success" size="sm">Unblocked</Badge>
-                      )}
-                    </td>
-                    <td className="px-6 py-4 text-right">
-                      {site.domain && !loadingLicensing && (
-                        lic?.isBlocked ? (
-                          <Button color="secondary" size="sm" onClick={() => handleLicensingAction(site.domain!, "unblocked")}>
-                            Unblock
-                          </Button>
-                        ) : (
-                          <Button color="secondary-destructive" size="sm" onClick={() => handleLicensingAction(site.domain!, "blocked")}>
-                            Block
-                          </Button>
-                        )
-                      )}
-                    </td>
-                  </tr>
-                );
-              })
-            )}
+                    </div>
+                  </td>
+                  <td className="px-6 py-4 text-sm text-tertiary">
+                    {site.domain || "—"}
+                  </td>
+                  <td className="px-6 py-4 text-sm text-tertiary">
+                    {formTool || "—"}
+                  </td>
+                  <td className="px-6 py-4 text-sm text-tertiary">
+                    {crm || "—"}
+                  </td>
+                  <td className="px-6 py-4">
+                    <Badge color={site.status === "active" ? "success" : "gray"} size="sm">
+                      {site.status.charAt(0).toUpperCase() + site.status.slice(1)}
+                    </Badge>
+                  </td>
+                  <td className="px-6 py-4">
+                    {loadingLicensing ? (
+                      <span className="text-xs text-quaternary">Checking...</span>
+                    ) : !site.domain ? (
+                      <span className="text-xs text-quaternary">—</span>
+                    ) : lic?.isBlocked ? (
+                      <Badge color="error" size="sm">Blocked</Badge>
+                    ) : (
+                      <Badge color="success" size="sm">Unblocked</Badge>
+                    )}
+                  </td>
+                </tr>
+              );
+            })}
           </tbody>
         </table>
       </div>
+
+      {selectedSite && (
+        <SiteDetailsDrawer
+          site={selectedSite}
+          licensing={selectedSite.domain ? licensing[selectedSite.domain] : undefined}
+          loadingLicensing={loadingLicensing}
+          onLicensingAction={handleLicensingAction}
+          isOpen={Boolean(selectedSiteId)}
+          onOpenChange={(open) => {
+            if (!open) setSelectedSiteId(null);
+          }}
+        />
+      )}
     </div>
   );
 }
