@@ -7,6 +7,7 @@ import { SlideoutMenu } from "@/components/application/slideout-menus/slideout-m
 import { FeaturedIcon } from "@/components/foundations/featured-icon/featured-icon";
 import type { AccountSite } from "@/lib/queries/account-detail";
 import { formatDate } from "@/lib/utils/format";
+import { CopyableLink } from "../../_components/copyable-link";
 
 interface LicensingRecord {
   isBlocked: boolean;
@@ -24,13 +25,11 @@ function Field({ label, value, href }: { label: string; value: string | null; hr
   return (
     <div>
       <dt className="text-sm text-tertiary">{label}</dt>
-      <dd className="mt-1 break-all text-sm font-medium text-primary">
+      <dd className="mt-1 text-sm font-medium text-primary">
         {href && value ? (
-          <a href={href} target="_blank" rel="noopener noreferrer" className="text-brand-primary hover:underline">
-            {value}
-          </a>
+          <CopyableLink href={href} value={value} label={label} />
         ) : (
-          value || "—"
+          <span className="break-all">{value || "—"}</span>
         )}
       </dd>
     </div>
@@ -155,14 +154,9 @@ export function SiteDetailsDrawer({
             {site.isDefault && <Badge color="gray" size="sm">Default</Badge>}
           </div>
           {site.domain ? (
-            <a
-              href={`https://${site.domain}`}
-              target="_blank"
-              rel="noopener noreferrer"
-              className="truncate text-sm text-brand-primary hover:underline"
-            >
-              {site.domain}
-            </a>
+            <div className="text-sm">
+              <CopyableLink href={`https://${site.domain}`} value={site.domain} label="Domain" />
+            </div>
           ) : (
             <p className="text-sm text-tertiary">No domain set</p>
           )}
