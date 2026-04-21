@@ -43,12 +43,12 @@ export default async function AccountDetailPage({
     <div className="space-y-6">
       <AccountHeader account={account} subscription={subscription} sites={siteDomains} />
       <UsersSection users={users} account={account} />
+      <SitesSection sites={sites} accountId={account.id} />
       <SubscriptionSection accountId={account.id} subscription={subscription} />
       <BillingSection
         accountId={account.id}
         stripeCustomerId={subscription?.stripeCustomerId ?? null}
       />
-      <SitesSection sites={sites} accountId={account.id} />
       <AttributionSection account={account} />
       <EnrichmentSection accountId={account.id} enrichment={enrichment} />
       <ActivityTimeline events={events} />
