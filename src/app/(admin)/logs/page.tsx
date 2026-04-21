@@ -1,7 +1,7 @@
 export const dynamic = "force-dynamic";
 
 import { Suspense } from "react";
-import { getEventLogs, getDistinctEventTypes, getDistinctSources } from "@/lib/queries/logs";
+import { getEventLogs } from "@/lib/queries/logs";
 import { LogsTable } from "./_components/logs-table";
 
 interface LogsPageProps {
@@ -19,18 +19,14 @@ export default async function LogsPage({ searchParams }: LogsPageProps) {
   const params = await searchParams;
   const page = parseInt(params.page || "1", 10);
 
-  const [{ logs, totalCount }, eventTypes, sources] = await Promise.all([
-    getEventLogs({
-      page,
-      eventType: params.type,
-      source: params.source,
-      search: params.search,
-      dateFrom: params.from,
-      dateTo: params.to,
-    }),
-    getDistinctEventTypes(),
-    getDistinctSources(),
-  ]);
+  const { logs, totalCount } = await getEventLogs({
+    page,
+    eventType: params.type,
+    source: params.source,
+    search: params.search,
+    dateFrom: params.from,
+    dateTo: params.to,
+  });
 
   return (
     <div>
@@ -45,8 +41,6 @@ export default async function LogsPage({ searchParams }: LogsPageProps) {
             logs={logs}
             totalCount={totalCount}
             currentPage={page}
-            eventTypes={eventTypes}
-            sources={sources}
             filters={{
               type: params.type || "",
               source: params.source || "",

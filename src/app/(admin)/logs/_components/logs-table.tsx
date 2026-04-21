@@ -6,11 +6,12 @@ import Link from "next/link";
 import { Badge } from "@/components/base/badges/badges";
 import { Button } from "@/components/base/buttons/button";
 import { Input } from "@/components/base/input/input";
+import { Select } from "@/components/base/select/select";
 import { SearchLg, ChevronLeft, ChevronRight } from "@untitledui/icons";
 import type { LogEntry } from "@/lib/queries/logs";
 import { getEventDescription, getEventTypeColor } from "@/lib/utils/events";
 import { formatDateTime } from "@/lib/utils/format";
-import { SOURCE_LABELS } from "@/lib/utils/constants";
+import { EVENT_TYPE_LABELS, SOURCE_LABELS } from "@/lib/utils/constants";
 
 const PAGE_SIZE = 50;
 
@@ -18,8 +19,6 @@ interface LogsTableProps {
   logs: LogEntry[];
   totalCount: number;
   currentPage: number;
-  eventTypes: string[];
-  sources: string[];
   filters: {
     type: string;
     source: string;
@@ -33,8 +32,6 @@ export function LogsTable({
   logs,
   totalCount,
   currentPage,
-  eventTypes,
-  sources,
   filters,
 }: LogsTableProps) {
   const router = useRouter();
@@ -75,26 +72,30 @@ export function LogsTable({
           />
         </form>
         <div className="flex gap-3">
-          <select
-            value={filters.type}
-            onChange={(e) => updateParams({ type: e.target.value })}
-            className="flex-1 rounded-lg border border-secondary bg-primary px-3 py-2 text-sm text-secondary sm:flex-none"
+          <Select
+            size="sm"
+            placeholder="All Types"
+            selectedKey={filters.type || null}
+            onSelectionChange={(key) => updateParams({ type: key === null ? "" : String(key) })}
+            className="w-44"
           >
-            <option value="">All Types</option>
-            {eventTypes.map((t) => (
-              <option key={t} value={t}>{t}</option>
+            <Select.Item id="" label="All Types" />
+            {Object.entries(EVENT_TYPE_LABELS).map(([value, label]) => (
+              <Select.Item key={value} id={value} label={label} />
             ))}
-          </select>
-          <select
-            value={filters.source}
-            onChange={(e) => updateParams({ source: e.target.value })}
-            className="flex-1 rounded-lg border border-secondary bg-primary px-3 py-2 text-sm text-secondary sm:flex-none"
+          </Select>
+          <Select
+            size="sm"
+            placeholder="All Sources"
+            selectedKey={filters.source || null}
+            onSelectionChange={(key) => updateParams({ source: key === null ? "" : String(key) })}
+            className="w-44"
           >
-            <option value="">All Sources</option>
-            {sources.map((s) => (
-              <option key={s} value={s}>{SOURCE_LABELS[s] ?? s}</option>
+            <Select.Item id="" label="All Sources" />
+            {Object.entries(SOURCE_LABELS).map(([value, label]) => (
+              <Select.Item key={value} id={value} label={label} />
             ))}
-          </select>
+          </Select>
         </div>
       </div>
 

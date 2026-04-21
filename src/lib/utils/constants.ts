@@ -66,6 +66,15 @@ export const SIGNUP_METHODS: Record<string, string> = {
   github: "GitHub",
 };
 
+export const EVENT_TYPE_LABELS: Record<string, string> = {
+  account: "Account",
+  auth: "Auth",
+  subscription: "Subscription",
+  site: "Site",
+  admin: "Admin",
+  cron: "Cron",
+};
+
 export const SOURCE_LABELS: Record<string, string> = {
   system: "System",
   user: "User",

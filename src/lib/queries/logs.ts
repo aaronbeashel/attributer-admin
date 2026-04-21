@@ -90,24 +90,3 @@ export async function getEventLogs(params: LogsParams = {}): Promise<LogsResult>
   return { logs, totalCount: count ?? 0 };
 }
 
-export async function getDistinctEventTypes(): Promise<string[]> {
-  const supabase = createSupabaseAdminClient();
-  const { data } = await supabase
-    .from("event_log")
-    .select("event_type")
-    .limit(500);
-
-  const types = new Set((data ?? []).map((e) => e.event_type));
-  return Array.from(types).sort();
-}
-
-export async function getDistinctSources(): Promise<string[]> {
-  const supabase = createSupabaseAdminClient();
-  const { data } = await supabase
-    .from("event_log")
-    .select("source")
-    .limit(500);
-
-  const sources = new Set((data ?? []).map((e) => e.source));
-  return Array.from(sources).sort();
-}
