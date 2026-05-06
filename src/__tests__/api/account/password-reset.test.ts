@@ -43,17 +43,21 @@ describe("POST /api/account/[id]/password-reset", () => {
     expect(res.status).toBe(400);
   });
 
-  it("calls customer app forget-password endpoint", async () => {
+  it("calls customer app request-password-reset endpoint with confirm redirect", async () => {
     const res = await POST(makeRequest({ email: "test@example.com" }), { params: mockParams });
     expect(res.status).toBe(200);
 
     expect(globalThis.fetch).toHaveBeenCalledWith(
-      "http://localhost:3001/api/auth/forget-password",
+      "http://localhost:3001/api/auth/request-password-reset",
       expect.objectContaining({
         method: "POST",
         body: expect.stringContaining("test@example.com"),
       })
     );
+
+    const fetchCall = vi.mocked(globalThis.fetch).mock.calls[0];
+    const sentBody = JSON.parse(fetchCall[1]?.body as string);
+    expect(sentBody.redirectTo).toBe("/reset-password/confirm");
   });
 
   it("returns 502 when customer app returns error", async () => {

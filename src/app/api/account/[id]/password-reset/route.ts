@@ -26,16 +26,15 @@ export async function POST(
       return NextResponse.json({ error: "Account not found" }, { status: 404 });
     }
 
-    // Call the customer app's BetterAuth forget-password endpoint
     const customerAppUrl = process.env.CUSTOMER_APP_URL;
     if (!customerAppUrl) {
       return NextResponse.json({ error: "CUSTOMER_APP_URL not configured" }, { status: 500 });
     }
 
-    const response = await fetch(`${customerAppUrl}/api/auth/forget-password`, {
+    const response = await fetch(`${customerAppUrl}/api/auth/request-password-reset`, {
       method: "POST",
       headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ email, redirectTo: "/reset-password" }),
+      body: JSON.stringify({ email, redirectTo: "/reset-password/confirm" }),
     });
 
     if (!response.ok) {
