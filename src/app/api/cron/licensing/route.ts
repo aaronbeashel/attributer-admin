@@ -91,31 +91,40 @@ export async function GET(request: Request) {
         .upsert(batch, { onConflict: "domain", ignoreDuplicates: false });
     }
 
-    // Step 3: Fast checks on 'new' AND 'pending_check' domains (fetch all, not just default 1000)
-    // Running on pending_check too ensures that domains stuck from a previous run
-    // get re-verified against the sites/subscriptions tables before going to the checker.
-    // This catches cases where a domain was 'pending_check' but has since become
-    // a paying customer (or is linked to an existing active subscription).
-    const allNewDomains: Array<{ id: string; domain: string }> = [];
+    // Step 3: Reset stale states BEFORE the license check so they get a fresh
+    // license evaluation this run, not just another trip through the install
+    // checker. check_failed → retry. not_installed → re-verify (script may
+    // have been re-added since last check).
+    await supabase.from("licensing_domains").update({
+      status: "pending_check", check_error: null, updated_at: now,
+    }).eq("status", "check_failed");
+
+    await supabase.from("licensing_domains").update({
+      status: "pending_check", script_installed: null, updated_at: now,
+    }).eq("status", "not_installed");
+
+    // Step 4: Fast checks on 'new', 'pending_check', AND 'confirmed_unlicensed'.
+    // confirmed_unlicensed is included so that customers who subscribed (or
+    // added a domain to their multisite plan) after being flagged get promoted
+    // to 'licensed' instead of staying stuck.
+    const reCheckDomains: Array<{ id: string; domain: string; status: string }> = [];
     let offset = 0;
     while (true) {
       const { data: batch } = await supabase
         .from("licensing_domains")
-        .select("id, domain")
-        .in("status", ["new", "pending_check"])
+        .select("id, domain, status")
+        .in("status", ["new", "pending_check", "confirmed_unlicensed"])
         .range(offset, offset + 999);
       if (!batch || batch.length === 0) break;
-      allNewDomains.push(...batch);
+      reCheckDomains.push(...batch);
       if (batch.length < 1000) break;
       offset += 1000;
     }
-    const newDomains = allNewDomains;
 
-    if (newDomains && newDomains.length > 0) {
+    if (reCheckDomains.length > 0) {
       const licensedIds = new Set<string>();
 
-      // Check each domain individually for license status
-      for (const d of newDomains) {
+      for (const d of reCheckDomains) {
         const { isLicensed, account } = await checkDomainLicensed(supabase, d.domain);
 
         if (isLicensed && account) {
@@ -139,13 +148,18 @@ export async function GET(request: Request) {
         }
       }
 
-      // Check blocked on licensing server (only non-licensed new domains)
-      const unlicensedNew = newDomains.filter((d) => !licensedIds.has(d.id));
-      if (unlicensedNew.length > 0) {
-        const blockedResults = await checkBlockedDomains(unlicensedNew.map((d) => d.domain));
+      // Blocked check + status transition only applies to domains that started
+      // as 'new' or 'pending_check'. confirmed_unlicensed domains that didn't
+      // become licensed stay as confirmed_unlicensed (don't re-route them
+      // through the install checker — that decision already stands).
+      const unlicensedNewOrPending = reCheckDomains.filter(
+        (d) => !licensedIds.has(d.id) && (d.status === "new" || d.status === "pending_check")
+      );
+      if (unlicensedNewOrPending.length > 0) {
+        const blockedResults = await checkBlockedDomains(unlicensedNewOrPending.map((d) => d.domain));
         const blockedSet = new Set(blockedResults.filter((r) => r.isBlocked).map((r) => r.domain));
 
-        for (const d of unlicensedNew) {
+        for (const d of unlicensedNewOrPending) {
           if (blockedSet.has(d.domain)) {
             await supabase.from("licensing_domains").update({
               status: "blocked",
@@ -162,7 +176,7 @@ export async function GET(request: Request) {
       }
     }
 
-    // Step 4: Re-check 'licensed' domains (subscription may have been cancelled)
+    // Step 5: Re-check 'licensed' domains (subscription may have been cancelled)
     const allLicensedDomains: Array<{ id: string; domain: string }> = [];
     let licOffset = 0;
     while (true) {
@@ -189,7 +203,7 @@ export async function GET(request: Request) {
       }
     }
 
-    // Step 5: Re-check 'blocked' domains (may have been unblocked)
+    // Step 6: Re-check 'blocked' domains (may have been unblocked)
     const allBlockedDomains: Array<{ id: string; domain: string }> = [];
     let blkOffset = 0;
     while (true) {
@@ -218,20 +232,7 @@ export async function GET(request: Request) {
       }
     }
 
-    // Step 6: Reset 'check_failed' to 'pending_check' for retry
-    await supabase.from("licensing_domains").update({
-      status: "pending_check", check_error: null, updated_at: now,
-    }).eq("status", "check_failed");
-
-    // Step 6b: Reset 'not_installed' to 'pending_check' for re-verification.
-    // Domains that were marked as having no script installed might have had
-    // the script re-added since last check. We re-check them each run to
-    // catch sites that removed the script during review then re-installed it.
-    await supabase.from("licensing_domains").update({
-      status: "pending_check", script_installed: null, updated_at: now,
-    }).eq("status", "not_installed");
-
-    // Step 7: Submit all pending_check domains to checker service via batch
+    // Step 7: Submit all 'pending_check' domains to checker service via batch
     const adminAppUrl = process.env.ADMIN_APP_URL;
     const webhookSecret = process.env.CHECKER_WEBHOOK_SECRET;
     let batchSubmitted = false;
