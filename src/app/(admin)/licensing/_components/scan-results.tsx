@@ -2,9 +2,11 @@
 
 import { useCallback, useEffect, useState } from "react";
 import Link from "next/link";
+import { Copy01 } from "@untitledui/icons";
 import { toast } from "sonner";
 import { Badge } from "@/components/base/badges/badges";
 import { Button } from "@/components/base/buttons/button";
+import { useClipboard } from "@/hooks/use-clipboard";
 
 interface LicensingDomain {
   id: string;
@@ -54,6 +56,7 @@ function DomainCard({
   onAction: (domain: string, action: "blocked" | "dismissed") => void;
 }) {
   const [acting, setActing] = useState(false);
+  const { copy } = useClipboard();
 
   async function handleAction(action: "blocked" | "dismissed") {
     setActing(true);
@@ -61,11 +64,31 @@ function DomainCard({
     setActing(false);
   }
 
+  async function handleCopyDomain() {
+    const result = await copy(domain.domain);
+    if (result.success) {
+      toast.success("Domain copied to clipboard");
+    } else {
+      toast.error("Failed to copy domain");
+    }
+  }
+
   return (
     <div className="rounded-xl border border-secondary bg-primary p-5">
       {/* Header */}
       <div className="flex items-start justify-between gap-4">
-        <h3 className="text-md font-semibold text-primary break-all">{domain.domain}</h3>
+        <div className="flex min-w-0 items-start gap-1.5">
+          <h3 className="text-md font-semibold text-primary break-all">{domain.domain}</h3>
+          <button
+            type="button"
+            onClick={handleCopyDomain}
+            title="Copy domain"
+            aria-label="Copy domain"
+            className="mt-0.5 shrink-0 cursor-pointer rounded p-0.5 text-tertiary transition-colors hover:bg-secondary hover:text-secondary"
+          >
+            <Copy01 aria-hidden className="size-3.5" />
+          </button>
+        </div>
         <span className="shrink-0 text-sm font-medium text-tertiary">
           {domain.callCount.toLocaleString()} calls
         </span>
@@ -111,7 +134,12 @@ function DomainCard({
           Visit site ↗
         </a>
         {domain.accountId && (
-          <Link href={`/accounts/${domain.accountId}`} className="text-brand-primary hover:underline">
+          <Link
+            href={`/accounts/${domain.accountId}`}
+            target="_blank"
+            rel="noopener noreferrer"
+            className="text-brand-primary hover:underline"
+          >
             View account ↗
           </Link>
         )}
