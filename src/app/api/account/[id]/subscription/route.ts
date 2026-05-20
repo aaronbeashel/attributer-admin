@@ -120,6 +120,35 @@ export async function PUT(
       quantity = Math.ceil(body.leadLimit / 1000);
     }
 
+    // Validate site limit override (only allowed for multisite plans)
+    let siteLimitOverride: number | undefined;
+    if (body.siteLimit !== undefined && body.siteLimit !== null) {
+      const parsed = Number(body.siteLimit);
+      if (!Number.isInteger(parsed) || parsed < 1) {
+        return NextResponse.json(
+          { error: "siteLimit must be a positive integer" },
+          { status: 400 }
+        );
+      }
+      if (newPlan.type !== "multisite") {
+        return NextResponse.json(
+          { error: "siteLimit can only be overridden for multisite plans" },
+          { status: 400 }
+        );
+      }
+      siteLimitOverride = parsed;
+    }
+
+    // Apply coupon FIRST so proration math runs against the discounted price.
+    // Without this ordering, Stripe would invoice the prorated upgrade at the
+    // full list price and the coupon would only affect future invoices.
+    if (body.couponId) {
+      const stripe = getStripeServer();
+      await stripe.subscriptions.update(subscription.stripe_subscription_id, {
+        discounts: [{ coupon: body.couponId }],
+      });
+    }
+
     await updateSubscriptionPlan({
       subscriptionId: subscription.stripe_subscription_id,
       newPriceId: pricing.stripe_price_id,
@@ -132,6 +161,8 @@ export async function PUT(
         ? 10000 * quantity
         : pricing.amount_cents;
 
+    const finalSiteLimit = siteLimitOverride ?? newPlan.site_limit;
+
     // Update local DB
     const supabase = createSupabaseAdminClient();
     await supabase
@@ -140,7 +171,7 @@ export async function PUT(
         plan_id: newPlan.id,
         plan_name: newPlan.name,
         plan_price_cents: actualPriceCents,
-        site_limit: newPlan.site_limit,
+        site_limit: finalSiteLimit,
         lead_limit: body.leadLimit || newPlan.lead_limit,
         updated_at: new Date().toISOString(),
       })
@@ -155,6 +186,8 @@ export async function PUT(
         newPriceCents: actualPriceCents,
         billingPeriod,
         prorate: body.prorate !== false,
+        couponId: body.couponId,
+        siteLimitOverride,
         initiatedBy: "admin",
         supportCaseId: body.supportCaseId,
       },
@@ -167,7 +200,7 @@ export async function PUT(
         id: newPlan.id,
         name: newPlan.name,
         priceCents: actualPriceCents,
-        siteLimit: newPlan.site_limit,
+        siteLimit: finalSiteLimit,
         leadLimit: body.leadLimit || newPlan.lead_limit,
       },
     });
