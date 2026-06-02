@@ -5,6 +5,7 @@ import { toast } from "sonner";
 import { Badge } from "@/components/base/badges/badges";
 import type { AccountSite } from "@/lib/queries/account-detail";
 import { SiteDetailsCard, SiteDetailsDrawer } from "./site-details";
+import { CancelSiteModal } from "./actions/cancel-site-modal";
 
 interface SitesSectionProps {
   sites: AccountSite[];
@@ -25,6 +26,7 @@ export function SitesSection({ sites, accountId }: SitesSectionProps) {
   const [licensing, setLicensing] = useState<LicensingStatus>({});
   const [loadingLicensing, setLoadingLicensing] = useState(true);
   const [selectedSiteId, setSelectedSiteId] = useState<string | null>(null);
+  const [cancelSite, setCancelSite] = useState<AccountSite | null>(null);
 
   useEffect(() => {
     let cancelled = false;
@@ -211,6 +213,26 @@ export function SitesSection({ sites, accountId }: SitesSectionProps) {
           isOpen={Boolean(selectedSiteId)}
           onOpenChange={(open) => {
             if (!open) setSelectedSiteId(null);
+          }}
+          onCancelSite={(site) => setCancelSite(site)}
+        />
+      )}
+
+      {cancelSite && (
+        <CancelSiteModal
+          isOpen={Boolean(cancelSite)}
+          onClose={() => setCancelSite(null)}
+          accountId={accountId}
+          site={{ id: cancelSite.id, name: cancelSite.name, domain: cancelSite.domain }}
+          onCancelled={(domain) => {
+            if (domain) {
+              setLicensing((prev) => ({
+                ...prev,
+                [domain]: { isBlocked: true, blockedAt: new Date().toISOString() },
+              }));
+            }
+            // Close the drawer — the site is now inactive
+            setSelectedSiteId(null);
           }}
         />
       )}

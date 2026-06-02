@@ -134,6 +134,7 @@ export function SiteDetailsCard({ site, licensing, loadingLicensing, onLicensing
 interface SiteDetailsDrawerProps extends SiteDetailsProps {
   isOpen: boolean;
   onOpenChange: (open: boolean) => void;
+  onCancelSite: (site: AccountSite) => void;
 }
 
 export function SiteDetailsDrawer({
@@ -143,6 +144,7 @@ export function SiteDetailsDrawer({
   onLicensingAction,
   isOpen,
   onOpenChange,
+  onCancelSite,
 }: SiteDetailsDrawerProps) {
   return (
     <SlideoutMenu isOpen={isOpen} onOpenChange={onOpenChange} isDismissable>
@@ -186,6 +188,11 @@ export function SiteDetailsDrawer({
           loadingLicensing={loadingLicensing}
           onLicensingAction={onLicensingAction}
         />
+        {site.status === "active" && (
+          <Button size="sm" color="primary-destructive" onClick={() => onCancelSite(site)}>
+            Cancel site
+          </Button>
+        )}
       </SlideoutMenu.Footer>
     </SlideoutMenu>
   );
