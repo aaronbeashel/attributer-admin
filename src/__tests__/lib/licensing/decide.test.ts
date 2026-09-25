@@ -77,8 +77,7 @@ describe("decideRow", () => {
   it.each(["dismissed", "confirmed_unlicensed", "pending_check"])("leaves %s unchanged with no paying owner", (status) => {
     const original = row({ status, script_installed: true, is_licensed: false });
     const state = finalState(decideRow(original, [], false, true));
-    const { id: _id, domain: _domain, ...originalState } = original;
-    expect(state).toEqual(originalState);
+    expect({ id: original.id, domain: original.domain, ...state }).toEqual(original);
   });
 
   it.each(["not_installed", "check_failed"])("leaves %s unchanged unless it's the monthly re-check", (status) => {
