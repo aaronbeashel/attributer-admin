@@ -25,13 +25,13 @@ export interface FakeLicensingDb {
 }
 
 export function createFakeLicensingDb(
-  tables: Record<string, Row[]>,
+  tables: Record<string, ReadonlyArray<object>>,
   opts: { failTables?: string[] } = {}
 ): FakeLicensingDb {
   const queries: FakeLicensingDb["queries"] = [];
 
   function from(table: string) {
-    let rows = [...(tables[table] ?? [])];
+    let rows = [...(tables[table] ?? [])] as Row[];
     let limit: number | null = null;
     const entry: { table: string; or?: string } = { table };
     queries.push(entry);

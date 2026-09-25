@@ -2,41 +2,12 @@ import { NextResponse } from "next/server";
 import { createSupabaseAdminClient } from "@/lib/supabase/admin";
 import { parseCSV } from "@/lib/licensing/process-csv";
 import { normalizeDomain, deduplicateDomains } from "@/lib/licensing/normalize";
-import { checkBlockedDomains } from "@/lib/external/blocklist";
+import { checkBlockedDomainsStrict } from "@/lib/external/blocklist";
 import { submitBatchCheck } from "@/lib/external/install-checker";
-
-// Helper: check if a domain has a licensed account (active/trialing subscription)
-async function checkDomainLicensed(
-  supabase: ReturnType<typeof createSupabaseAdminClient>,
-  domain: string
-): Promise<{ isLicensed: boolean; account: { id: string; name: string; email: string } | null }> {
-  const { data: sites } = await supabase
-    .from("sites")
-    .select("domain, accounts(id, name, email, subscriptions(status))")
-    .eq("domain", domain);
-
-  let bestAccount: { id: string; name: string; email: string } | null = null;
-
-  for (const site of sites ?? []) {
-    const account = site.accounts as unknown as {
-      id: string; name: string; email: string;
-      subscriptions: Array<{ status: string }>;
-    } | null;
-    if (!account) continue;
-
-    // Track any account context
-    bestAccount = { id: account.id, name: account.name, email: account.email };
-
-    const hasActiveSub = account.subscriptions?.some(
-      (s) => s.status === "active" || s.status === "trialing"
-    );
-    if (hasActiveSub) {
-      return { isLicensed: true, account: bestAccount };
-    }
-  }
-
-  return { isLicensed: false, account: bestAccount };
-}
+import { findOwners, loadSnapshot, type LicensingSnapshot } from "@/lib/licensing/entitlement";
+import { isSharedHost } from "@/lib/licensing/domain-match";
+import { applyServerCheck, decideRow, type DomainRow } from "@/lib/licensing/decide";
+import { loadAllRows } from "@/lib/licensing/load-all";
 
 export async function GET(request: Request) {
   const authHeader = request.headers.get("authorization");
@@ -91,144 +62,55 @@ export async function GET(request: Request) {
         .upsert(batch, { onConflict: "domain", ignoreDuplicates: false });
     }
 
-    // Step 3: Reset stale states BEFORE the license check so they get a fresh
-    // license evaluation this run, not just another trip through the install
-    // checker. check_failed → retry. not_installed → re-verify (script may
-    // have been re-added since last check).
-    await supabase.from("licensing_domains").update({
-      status: "pending_check", check_error: null, updated_at: now,
-    }).eq("status", "check_failed");
-
-    await supabase.from("licensing_domains").update({
-      status: "pending_check", script_installed: null, updated_at: now,
-    }).eq("status", "not_installed");
-
-    // Step 4: Fast checks on 'new', 'pending_check', AND 'confirmed_unlicensed'.
-    // confirmed_unlicensed is included so that customers who subscribed (or
-    // added a domain to their multisite plan) after being flagged get promoted
-    // to 'licensed' instead of staying stuck.
-    const reCheckDomains: Array<{ id: string; domain: string; status: string }> = [];
-    let offset = 0;
-    while (true) {
-      const { data: batch } = await supabase
-        .from("licensing_domains")
-        .select("id, domain, status")
-        .in("status", ["new", "pending_check", "confirmed_unlicensed"])
-        .range(offset, offset + 999);
-      if (!batch || batch.length === 0) break;
-      reCheckDomains.push(...batch);
-      if (batch.length < 1000) break;
-      offset += 1000;
-    }
-
-    if (reCheckDomains.length > 0) {
-      const licensedIds = new Set<string>();
-
-      for (const d of reCheckDomains) {
-        const { isLicensed, account } = await checkDomainLicensed(supabase, d.domain);
-
-        if (isLicensed && account) {
-          await supabase.from("licensing_domains").update({
-            status: "licensed",
-            is_licensed: true,
-            account_id: account.id,
-            account_name: account.name,
-            account_email: account.email,
-            updated_at: now,
-          }).eq("id", d.id);
-          licensedIds.add(d.id);
-        } else if (account) {
-          // Has an account but not licensed — store context for display
-          await supabase.from("licensing_domains").update({
-            account_id: account.id,
-            account_name: account.name,
-            account_email: account.email,
-            updated_at: now,
-          }).eq("id", d.id);
-        }
-      }
-
-      // Blocked check + status transition only applies to domains that started
-      // as 'new' or 'pending_check'. confirmed_unlicensed domains that didn't
-      // become licensed stay as confirmed_unlicensed (don't re-route them
-      // through the install checker — that decision already stands).
-      const unlicensedNewOrPending = reCheckDomains.filter(
-        (d) => !licensedIds.has(d.id) && (d.status === "new" || d.status === "pending_check")
+    // Step 3: Load who pays for what, and every licensing row. Partial data
+    // must never drive the list, so any failure stops here with nothing written.
+    let snapshot: LicensingSnapshot;
+    let rows: DomainRow[];
+    try {
+      snapshot = await loadSnapshot(supabase);
+      rows = await loadAllRows<DomainRow>(
+        supabase,
+        "licensing_domains",
+        "id, domain, status, account_id, account_name, account_email, is_licensed, is_blocked, script_installed, check_error"
       );
-      if (unlicensedNewOrPending.length > 0) {
-        const blockedResults = await checkBlockedDomains(unlicensedNewOrPending.map((d) => d.domain));
-        const blockedSet = new Set(blockedResults.filter((r) => r.isBlocked).map((r) => r.domain));
-
-        for (const d of unlicensedNewOrPending) {
-          if (blockedSet.has(d.domain)) {
-            await supabase.from("licensing_domains").update({
-              status: "blocked",
-              is_blocked: true,
-              updated_at: now,
-            }).eq("id", d.id);
-          } else {
-            await supabase.from("licensing_domains").update({
-              status: "pending_check",
-              updated_at: now,
-            }).eq("id", d.id);
-          }
-        }
-      }
+    } catch (err) {
+      console.error("[cron/licensing] Failed to load licensing data, nothing written:", err);
+      return NextResponse.json({ error: err instanceof Error ? err.message : String(err) }, { status: 500 });
     }
 
-    // Step 5: Re-check 'licensed' domains (subscription may have been cancelled)
-    const allLicensedDomains: Array<{ id: string; domain: string }> = [];
-    let licOffset = 0;
-    while (true) {
-      const { data: batch } = await supabase
+    // Step 4: Decide every row. not_installed and check_failed are only re-queued
+    // on the first run of each month (install checker cost), unless ?recheck= says.
+    const recheckParam = new URL(request.url).searchParams.get("recheck");
+    const monthlyRecheck =
+      recheckParam === "1" ? true : recheckParam === "0" ? false : new Date().getUTCDate() <= 7;
+
+    const decisions = rows.map((row) =>
+      decideRow(row, findOwners(snapshot, row.domain), isSharedHost(row.domain), monthlyRecheck)
+    );
+
+    // Step 5: One licensing server check for everything that needs it
+    const toCheck = rows.filter((_, i) => decisions[i].kind === "server_check").map((row) => row.domain);
+    const serverResults = toCheck.length > 0 ? await checkBlockedDomainsStrict(toCheck) : [];
+    const outcome = applyServerCheck(rows, decisions, serverResults);
+
+    if (outcome.breakerTripped) {
+      console.error(
+        `[cron/licensing] Licensing server failed ${outcome.serverCheckFailed} of ${toCheck.length} checks, skipping every server-derived change this run`
+      );
+    }
+
+    // Step 6: Write only rows whose state changed, guarded on the status read in
+    // step 3 so a Block or Dismiss clicked during the run isn't overwritten.
+    let writeErrors = 0;
+    for (const write of outcome.writes) {
+      const { error } = await supabase
         .from("licensing_domains")
-        .select("id, domain")
-        .eq("status", "licensed")
-        .range(licOffset, licOffset + 999);
-      if (!batch || batch.length === 0) break;
-      allLicensedDomains.push(...batch);
-      if (batch.length < 1000) break;
-      licOffset += 1000;
-    }
-    const licensedDomains = allLicensedDomains;
-
-    if (licensedDomains && licensedDomains.length > 0) {
-      for (const d of licensedDomains) {
-        const { isLicensed } = await checkDomainLicensed(supabase, d.domain);
-        if (!isLicensed) {
-          await supabase.from("licensing_domains").update({
-            status: "pending_check", is_licensed: false, updated_at: now,
-          }).eq("id", d.id);
-        }
-      }
-    }
-
-    // Step 6: Re-check 'blocked' domains (may have been unblocked)
-    const allBlockedDomains: Array<{ id: string; domain: string }> = [];
-    let blkOffset = 0;
-    while (true) {
-      const { data: batch } = await supabase
-        .from("licensing_domains")
-        .select("id, domain")
-        .eq("status", "blocked")
-        .range(blkOffset, blkOffset + 999);
-      if (!batch || batch.length === 0) break;
-      allBlockedDomains.push(...batch);
-      if (batch.length < 1000) break;
-      blkOffset += 1000;
-    }
-    const blockedDomains = allBlockedDomains;
-
-    if (blockedDomains && blockedDomains.length > 0) {
-      const recheck = await checkBlockedDomains(blockedDomains.map((d) => d.domain));
-      const stillBlocked = new Set(recheck.filter((r) => r.isBlocked).map((r) => r.domain));
-
-      for (const d of blockedDomains) {
-        if (!stillBlocked.has(d.domain)) {
-          await supabase.from("licensing_domains").update({
-            status: "pending_check", is_blocked: false, updated_at: now,
-          }).eq("id", d.id);
-        }
+        .update({ ...write.update, updated_at: now })
+        .eq("id", write.id)
+        .eq("status", write.fromStatus);
+      if (error) {
+        writeErrors++;
+        console.error(`[cron/licensing] Failed to update ${write.domain}:`, error);
       }
     }
 
@@ -236,51 +118,39 @@ export async function GET(request: Request) {
     const adminAppUrl = process.env.ADMIN_APP_URL;
     const webhookSecret = process.env.CHECKER_WEBHOOK_SECRET;
     let batchSubmitted = false;
+    const pendingDomains = outcome.finalRows.filter((row) => row.status === "pending_check").map((row) => row.domain);
 
-    if (adminAppUrl && webhookSecret) {
-      const allPending: Array<{ domain: string }> = [];
-      let pendOffset = 0;
-      while (true) {
-        const { data: batch } = await supabase
-          .from("licensing_domains")
-          .select("domain")
-          .eq("status", "pending_check")
-          .range(pendOffset, pendOffset + 999);
-        if (!batch || batch.length === 0) break;
-        allPending.push(...batch);
-        if (batch.length < 1000) break;
-        pendOffset += 1000;
-      }
-
-      if (allPending.length > 0) {
-        const webhookUrl = `${adminAppUrl}/api/webhooks/checker`;
-        try {
-          const batchResult = await submitBatchCheck(
-            allPending.map((d) => d.domain),
-            webhookUrl,
-            webhookSecret
-          );
-          console.log(`[cron/licensing] Submitted batch ${batchResult.batch_id}: ${batchResult.total} domains`);
-          batchSubmitted = true;
-        } catch (err) {
-          console.error("[cron/licensing] Failed to submit batch check:", err);
-        }
+    if (adminAppUrl && webhookSecret && pendingDomains.length > 0) {
+      const webhookUrl = `${adminAppUrl}/api/webhooks/checker`;
+      try {
+        const batchResult = await submitBatchCheck(pendingDomains, webhookUrl, webhookSecret);
+        console.log(`[cron/licensing] Submitted batch ${batchResult.batch_id}: ${batchResult.total} domains`);
+        batchSubmitted = true;
+      } catch (err) {
+        console.error("[cron/licensing] Failed to submit batch check:", err);
       }
     }
 
-    // Get counts for response
-    const { count: pendingCount } = await supabase
-      .from("licensing_domains")
-      .select("*", { count: "exact", head: true })
-      .eq("status", "pending_check");
-
-    return NextResponse.json({
-      success: true,
+    const summary = {
+      success: !outcome.breakerTripped,
+      ...(outcome.breakerTripped
+        ? { error: `Licensing server failed ${outcome.serverCheckFailed} of ${toCheck.length} checks, server-derived changes skipped` }
+        : {}),
       totalRows: rawRows.length,
       uniqueDomains: deduplicated.length,
-      pendingInstallCheck: pendingCount ?? 0,
+      pendingInstallCheck: pendingDomains.length,
       batchSubmitted,
-    });
+      statusCounts: outcome.statusCounts,
+      changed: outcome.writes.length,
+      writeErrors,
+      serverCheckFailed: outcome.serverCheckFailed,
+      breakerTripped: outcome.breakerTripped,
+      payingButBlocked: outcome.payingButBlocked,
+    };
+    console.log(`[cron/licensing] Summary ${JSON.stringify(summary)}`);
+
+    // 503 when the breaker tripped, so the run shows as failed in the logs
+    return NextResponse.json(summary, { status: outcome.breakerTripped ? 503 : 200 });
   } catch (err) {
     console.error("[cron/licensing] Error:", err);
     return NextResponse.json({ error: "Internal server error" }, { status: 500 });
