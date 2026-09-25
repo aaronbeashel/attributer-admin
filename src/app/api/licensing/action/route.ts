@@ -1,23 +1,52 @@
 import { NextRequest, NextResponse } from "next/server";
 import { createSupabaseAdminClient } from "@/lib/supabase/admin";
-import { blockDomain, unblockDomain } from "@/lib/external/blocklist";
+import { blockDomain, unblockDomain, LICENSING_WRITES_DISABLED_MESSAGE } from "@/lib/external/blocklist";
+import { normalizeDomain } from "@/lib/licensing/normalize";
+import { checkBlockAllowed } from "@/lib/licensing/block-guard";
 
 export async function POST(request: NextRequest) {
   try {
-    const { domain, action, reason, notes } = await request.json();
+    const { domain: rawDomain, action, reason, notes, excludeAccountId } = await request.json();
 
-    if (!domain || !action || !["blocked", "dismissed", "unblocked"].includes(action)) {
+    if (!rawDomain || !action || !["blocked", "dismissed", "unblocked"].includes(action)) {
       return NextResponse.json({ error: "Invalid request" }, { status: 400 });
     }
 
-    // Call licensing server
-    if (action === "blocked") {
-      await blockDomain(domain, reason || "Unlicensed usage");
-    } else if (action === "unblocked") {
-      await unblockDomain(domain);
+    // Normalise once: the guard, the licensing server and the database all get this value
+    const domain = normalizeDomain(String(rawDomain));
+    if (!domain) {
+      return NextResponse.json({ error: "Invalid request" }, { status: 400 });
     }
 
     const supabase = createSupabaseAdminClient();
+
+    // Call licensing server
+    if (action === "blocked") {
+      // Never block a domain a paying customer owns. A refusal sends and writes nothing.
+      const guard = await checkBlockAllowed(supabase, domain, {
+        excludeAccountId: typeof excludeAccountId === "string" ? excludeAccountId : undefined,
+      });
+      if (!guard.ok) {
+        return NextResponse.json({ error: guard.error }, { status: guard.status });
+      }
+
+      const result = await blockDomain(domain, reason || "Unlicensed usage");
+      if (!result.success) {
+        const error = result.reason === "disabled"
+          ? LICENSING_WRITES_DISABLED_MESSAGE
+          : "Not blocked. The licensing server didn't accept the block. Try again.";
+        return NextResponse.json({ error }, { status: 502 });
+      }
+    } else if (action === "unblocked") {
+      const result = await unblockDomain(domain);
+      if (!result.success) {
+        const error = result.reason === "disabled"
+          ? LICENSING_WRITES_DISABLED_MESSAGE
+          : "Not unblocked. The licensing server didn't accept the change. Try again.";
+        return NextResponse.json({ error }, { status: 502 });
+      }
+    }
+
     const now = new Date().toISOString();
 
     if (action === "unblocked") {

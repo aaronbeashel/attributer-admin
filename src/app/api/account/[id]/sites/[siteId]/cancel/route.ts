@@ -1,16 +1,19 @@
 import { NextRequest, NextResponse } from "next/server";
 import { verifyAdminApiKey } from "@/lib/admin-auth";
 import { createSupabaseAdminClient } from "@/lib/supabase/admin";
-import { blockDomain } from "@/lib/external/blocklist";
+import { blockDomain, LICENSING_WRITES_DISABLED_MESSAGE } from "@/lib/external/blocklist";
 import { logEvent } from "@/lib/event-logger";
+import { checkBlockAllowed } from "@/lib/licensing/block-guard";
 
 /**
  * Cancel a single site within a (multisite) account.
  *
  * Mirrors what happens when a customer cancels a site from their own account UI:
  *   1. The site is soft-deleted (status -> "inactive"); the row is kept for records.
- *   2. The site's domain is blocked in the licensing system so the script stops firing.
- *   3. A "site_removed" event is written to the activity log.
+ *   2. A "site_removed" event is written to the activity log.
+ *   3. The site's domain is blocked in the licensing system so the script stops firing,
+ *      unless the block guard refuses (the account's only active site, or another paying
+ *      customer on the same root domain). The site cancel stands either way.
  *
  * Crucially, Stripe / billing is left untouched — multisite plans are flat-rate per
  * tier, not per-site, so cancelling one site never changes the subscription.
@@ -65,38 +68,7 @@ export async function POST(
     return NextResponse.json({ error: "Failed to cancel site" }, { status: 500 });
   }
 
-  // 2. Block the domain in the licensing system (same as the customer self-cancel),
-  //    and keep the admin-side licensing tracking consistent with the Block button.
-  if (site.domain) {
-    await blockDomain(site.domain, "Site cancelled");
-
-    await supabase.from("licensing_domains").upsert(
-      {
-        domain: site.domain,
-        status: "blocked",
-        is_blocked: true,
-        reviewed_at: now,
-        reviewed_by: "admin",
-        review_note: "Site cancelled by admin",
-        updated_at: now,
-      },
-      { onConflict: "domain" }
-    );
-
-    try {
-      await supabase.from("licensing_reviews").insert({
-        domain: site.domain,
-        action: "blocked",
-        reason: "Site cancelled by admin",
-        notes: feedback,
-        actioned_by: "admin",
-      });
-    } catch {
-      // Ignore if the audit table doesn't exist
-    }
-  }
-
-  // 3. Log the cancellation (same event type the customer flow uses)
+  // 2. Log the cancellation (same event type the customer flow uses)
   await logEvent({
     accountId,
     eventType: "site_removed",
@@ -111,5 +83,53 @@ export async function POST(
     source: "admin_action",
   });
 
-  return NextResponse.json({ success: true });
+  // 3. Block the domain in the licensing system (same as the customer self-cancel),
+  //    only if the guard allows it, and keep the admin-side licensing tracking
+  //    consistent with the Block button. The site is already inactive, so it can't
+  //    protect itself, but the account's other active sites on the same root still do.
+  let domainBlocked = false;
+  let blockSkippedReason: string | undefined;
+
+  if (site.domain) {
+    const guard = await checkBlockAllowed(supabase, site.domain, {});
+    if (!guard.ok) {
+      blockSkippedReason = guard.error;
+    } else {
+      const result = await blockDomain(guard.domain, "Site cancelled");
+      if (!result.success) {
+        blockSkippedReason = result.reason === "disabled"
+          ? LICENSING_WRITES_DISABLED_MESSAGE
+          : "Not blocked. The licensing server didn't accept the block. Try again.";
+      } else {
+        domainBlocked = true;
+
+        await supabase.from("licensing_domains").upsert(
+          {
+            domain: guard.domain,
+            status: "blocked",
+            is_blocked: true,
+            reviewed_at: now,
+            reviewed_by: "admin",
+            review_note: "Site cancelled by admin",
+            updated_at: now,
+          },
+          { onConflict: "domain" }
+        );
+
+        try {
+          await supabase.from("licensing_reviews").insert({
+            domain: guard.domain,
+            action: "blocked",
+            reason: "Site cancelled by admin",
+            notes: feedback,
+            actioned_by: "admin",
+          });
+        } catch {
+          // Ignore if the audit table doesn't exist
+        }
+      }
+    }
+  }
+
+  return NextResponse.json({ success: true, domainBlocked, ...(blockSkippedReason ? { blockSkippedReason } : {}) });
 }
