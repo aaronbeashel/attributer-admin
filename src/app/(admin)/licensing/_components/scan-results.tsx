@@ -7,6 +7,7 @@ import { toast } from "sonner";
 import { Badge } from "@/components/base/badges/badges";
 import { Button } from "@/components/base/buttons/button";
 import { useClipboard } from "@/hooks/use-clipboard";
+import type { Hint } from "@/lib/licensing/entitlement";
 
 interface LicensingDomain {
   id: string;
@@ -22,6 +23,7 @@ interface LicensingDomain {
   accountName: string | null;
   accountEmail: string | null;
   createdAt: string;
+  hint: Hint | null;
 }
 
 interface StatusCounts {
@@ -34,7 +36,24 @@ interface StatusCounts {
   check_failed: number;
 }
 
+function getHintText(hint: Hint): string {
+  const email = hint.accountEmail ?? "A customer";
+  switch (hint.kind) {
+    case "other_domain":
+      return hint.siteDomain
+        ? `Possibly a paying customer's other domain. ${hint.siteDomain}${hint.accountEmail ? ` (${hint.accountEmail})` : ""} pays for Attributer. Check before blocking.`
+        : `Possibly a paying customer's other domain. ${email} pays for Attributer. Check before blocking.`;
+    case "suspended_site":
+      return `${email} pays for Attributer but their site ${hint.siteDomain} is suspended. Fix the site before blocking.`;
+    case "no_active_sites":
+      return `${email} pays for Attributer but has no active sites. Check the account before blocking.`;
+    case "removed_site":
+      return `${email} pays for Attributer but removed ${hint.siteDomain} from their account. The script is still running on it.`;
+  }
+}
+
 function getReasonText(domain: LicensingDomain): string {
+  if (domain.hint) return getHintText(domain.hint);
   if (domain.status === "check_failed") {
     const errorDetail = domain.checkError ? ` — ${domain.checkError}` : "";
     if (!domain.accountId) {
@@ -183,6 +202,7 @@ export function ScanResults() {
         fetch(`/api/licensing/domains?status=confirmed_unlicensed&minCalls=${minCalls}`),
         fetch(`/api/licensing/domains?status=check_failed&minCalls=${minCalls}`),
       ]);
+      if (!confirmedRes.ok || !failedRes.ok) throw new Error("Failed to load scan results");
       const confirmedData = await confirmedRes.json();
       const failedData = await failedRes.json();
 

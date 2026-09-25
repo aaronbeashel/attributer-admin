@@ -1,5 +1,10 @@
 import { NextResponse } from "next/server";
 import { createSupabaseAdminClient } from "@/lib/supabase/admin";
+import { reviewHint, type LicensingSnapshot } from "@/lib/licensing/entitlement";
+import { getHintSnapshot } from "@/lib/licensing/snapshot-cache";
+
+// Rows Scan Results lists, which get a hint when they may belong to a paying customer
+const HINT_STATUSES = ["confirmed_unlicensed", "check_failed"];
 
 export async function GET(request: Request) {
   const supabase = createSupabaseAdminClient();
@@ -28,8 +33,20 @@ export async function GET(request: Request) {
     return NextResponse.json({ error: "Query failed" }, { status: 500 });
   }
 
+  // The hints need to know who pays. If that can't load, fail the request so
+  // Scan Results shows its load error rather than cards without their warnings.
+  let hintSnapshot: LicensingSnapshot | null = null;
+  if (HINT_STATUSES.includes(status)) {
+    try {
+      hintSnapshot = await getHintSnapshot(supabase);
+    } catch (err) {
+      console.error("[licensing/domains] Failed to load account data for hints:", err);
+      return NextResponse.json({ error: "Failed to load account data" }, { status: 500 });
+    }
+  }
+
   // Get status counts
-  const statuses = ["confirmed_unlicensed", "pending_check", "blocked", "dismissed", "licensed", "not_installed", "check_failed"];
+  const statuses = ["confirmed_unlicensed", "pending_check", "blocked", "dismissed", "licensed", "not_installed", "check_failed", "shared_host"];
   const counts: Record<string, number> = {};
 
   for (const s of statuses) {
@@ -59,6 +76,7 @@ export async function GET(request: Request) {
       reviewedAt: d.reviewed_at,
       reviewedBy: d.reviewed_by,
       createdAt: d.created_at,
+      hint: hintSnapshot && HINT_STATUSES.includes(d.status) ? reviewHint(hintSnapshot, d.domain, d.account_id) : null,
     })),
     counts,
   });
