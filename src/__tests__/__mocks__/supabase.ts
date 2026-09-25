@@ -7,26 +7,37 @@ interface MockResult {
 }
 
 export function createMockSupabaseChain(result: MockResult = { data: null, error: null }) {
+  // Every await of the chain resolves with the next queued result
+  // (chain._resolve.mockResolvedValueOnce(...)), then falls back to `result`.
+  // Use the queue where a test needs pages or reads that differ from writes.
+  const resolveNext = vi.fn().mockResolvedValue(result);
+
   const chain: Record<string, ReturnType<typeof vi.fn>> = {
     select: vi.fn().mockReturnThis(),
     insert: vi.fn().mockReturnThis(),
     update: vi.fn().mockReturnThis(),
+    upsert: vi.fn().mockReturnThis(),
     delete: vi.fn().mockReturnThis(),
     eq: vi.fn().mockReturnThis(),
     in: vi.fn().mockReturnThis(),
     or: vi.fn().mockReturnThis(),
     not: vi.fn().mockReturnThis(),
+    gte: vi.fn().mockReturnThis(),
+    ilike: vi.fn().mockReturnThis(),
     order: vi.fn().mockReturnThis(),
     limit: vi.fn().mockReturnThis(),
     range: vi.fn().mockReturnThis(),
     single: vi.fn().mockResolvedValue(result),
+    maybeSingle: vi.fn().mockResolvedValue(result),
+    _resolve: resolveNext,
   };
 
   // Make the chain itself thenable (for queries without .single())
   const thenableChain = new Proxy(chain, {
     get(target, prop) {
       if (prop === "then") {
-        return (resolve: (value: MockResult) => void) => resolve(result);
+        return (resolve: (value: MockResult) => void, reject: (reason: unknown) => void) =>
+          (resolveNext() as Promise<MockResult>).then(resolve, reject);
       }
       return target[prop as string];
     },
@@ -48,6 +59,7 @@ export function createMockSupabaseClient() {
     // Helper to set return value for a specific table
     _setResult(table: string, result: MockResult) {
       chains.set(table, createMockSupabaseChain(result));
+      return chains.get(table)!;
     },
   };
 }
