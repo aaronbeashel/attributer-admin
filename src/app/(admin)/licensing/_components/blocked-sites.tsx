@@ -50,6 +50,9 @@ export function BlockedSites() {
       if (res.ok) {
         setDomains((prev) => prev.filter((d) => d.domain !== domain));
         toast.success(`Unblocked ${domain}`);
+      } else {
+        const data = await res.json().catch(() => ({}));
+        toast.error(data.error ?? `Failed to unblock ${domain}`);
       }
     } catch {
       toast.error(`Failed to unblock ${domain}`);

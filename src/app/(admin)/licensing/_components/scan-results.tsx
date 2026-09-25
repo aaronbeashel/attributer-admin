@@ -212,6 +212,9 @@ export function ScanResults() {
         setDomains((prev) => prev.filter((d) => d.domain !== domain));
         toast.success(action === "blocked" ? `Blocked ${domain}` : `Dismissed ${domain}`);
         fetchDomains();
+      } else {
+        const data = await res.json().catch(() => ({}));
+        toast.error(data.error ?? `Failed to ${action === "blocked" ? "block" : "dismiss"} ${domain}`);
       }
     } catch {
       toast.error(`Failed to ${action} ${domain}`);

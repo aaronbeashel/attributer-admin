@@ -61,6 +61,9 @@ export function SitesSection({ sites, accountId }: SitesSectionProps) {
           [domain]: { isBlocked: action === "blocked", blockedAt: action === "blocked" ? new Date().toISOString() : null },
         }));
         toast.success(action === "blocked" ? `Blocked ${domain}` : `Unblocked ${domain}`);
+      } else {
+        const data = await res.json().catch(() => ({}));
+        toast.error(data.error ?? `Failed to ${action === "blocked" ? "block" : "unblock"} ${domain}`);
       }
     } catch {
       toast.error(`Failed to ${action} ${domain}`);
@@ -224,8 +227,8 @@ export function SitesSection({ sites, accountId }: SitesSectionProps) {
           onClose={() => setCancelSite(null)}
           accountId={accountId}
           site={{ id: cancelSite.id, name: cancelSite.name, domain: cancelSite.domain }}
-          onCancelled={(domain) => {
-            if (domain) {
+          onCancelled={(domain, domainBlocked) => {
+            if (domain && domainBlocked) {
               setLicensing((prev) => ({
                 ...prev,
                 [domain]: { isBlocked: true, blockedAt: new Date().toISOString() },

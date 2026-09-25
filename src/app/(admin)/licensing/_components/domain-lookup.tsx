@@ -51,6 +51,9 @@ export function DomainLookup() {
       if (res.ok) {
         toast.success(action === "blocked" ? `Blocked ${domain}` : `Unblocked ${domain}`);
         handleLookup(); // Refresh
+      } else {
+        const data = await res.json().catch(() => ({}));
+        toast.error(data.error ?? `Failed to ${action === "blocked" ? "block" : "unblock"} ${domain}`);
       }
     } catch {
       toast.error(`Failed to ${action} ${domain}`);
