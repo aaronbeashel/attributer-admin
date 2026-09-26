@@ -90,16 +90,21 @@ export function registrableRoot(domain: string): string {
   return MULTI_PART_SET.has(lastTwo) ? labels.slice(-3).join(".") : lastTwo;
 }
 
+/** One label, or a bare multi-part public suffix: never a real site or report domain. */
+function isBareSuffix(domain: string): boolean {
+  return !domain.includes(".") || MULTI_PART_SET.has(domain);
+}
+
 /**
  * Report domain D and site domain S are related when D equals S, or one is a
- * subdomain of the other. Shared hosts, one-label sites and sites stored as a
- * bare public suffix never relate to anything.
+ * subdomain of the other. Shared hosts, one-label domains and bare public
+ * suffixes never relate to anything, on either side.
  */
 export function isRelated(reportDomain: string, siteDomain: string): boolean {
   const d = normalizeDomain(reportDomain);
   const s = normalizeDomain(siteDomain);
   if (!d || !s) return false;
   if (isSharedHost(d) || isSharedHost(s)) return false;
-  if (!s.includes(".") || MULTI_PART_SET.has(s)) return false;
+  if (isBareSuffix(d) || isBareSuffix(s)) return false;
   return d === s || s.endsWith("." + d) || d.endsWith("." + s);
 }

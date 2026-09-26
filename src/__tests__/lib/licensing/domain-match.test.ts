@@ -50,6 +50,12 @@ describe("isRelated", () => {
     expect(isRelated("acme.com", "com")).toBe(false);
     expect(isRelated("localhost", "localhost")).toBe(false);
   });
+
+  it("is false when the report domain is one label or a bare public suffix", () => {
+    expect(isRelated("co.uk", "acme.co.uk")).toBe(false);
+    expect(isRelated("com.au", "shop.acme.com.au")).toBe(false);
+    expect(isRelated("com", "acme.com")).toBe(false);
+  });
 });
 
 describe("domainSuffixes", () => {
