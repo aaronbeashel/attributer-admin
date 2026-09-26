@@ -126,8 +126,8 @@ describe("POST /api/webhooks/checker", () => {
     expectGuardedUpdate("test.com");
   });
 
-  it("returns 200 even if domain not found in DB", async () => {
-    mockSelect.mockResolvedValue({ data: null, error: { code: "PGRST116" } });
+  it("returns 200 ignored if domain not found in DB", async () => {
+    mockSelect.mockResolvedValue({ data: [], error: null });
 
     const res = await POST(makeRequest({
       domain: "nonexistent.com",
@@ -136,6 +136,16 @@ describe("POST /api/webhooks/checker", () => {
     }));
 
     expect(res.status).toBe(200);
+    expect(await res.json()).toEqual({ success: true, ignored: true });
+  });
+
+  it("returns 500 on a database error so the checker retries", async () => {
+    vi.spyOn(console, "error").mockImplementation(() => {});
+    mockSelect.mockResolvedValue({ data: null, error: { code: "57014", message: "statement timeout" } });
+
+    const res = await POST(makeRequest({ domain: "test.com", removed: true }));
+
+    expect(res.status).toBe(500);
   });
 
   it("writes licensed with the owner's account when a paying owner exists", async () => {

@@ -92,8 +92,11 @@ export async function POST(request: Request) {
       .select("id");
 
     if (updateError) {
-      console.warn(`[webhooks/checker] Failed to update ${domain}:`, updateError);
-    } else if (!updated || updated.length === 0) {
+      // 500 so the checker retries rather than the result being lost
+      console.error(`[webhooks/checker] Failed to update ${domain}:`, updateError);
+      return NextResponse.json({ error: "Failed to update domain" }, { status: 500 });
+    }
+    if (!updated || updated.length === 0) {
       return NextResponse.json({ success: true, ignored: true });
     }
 
