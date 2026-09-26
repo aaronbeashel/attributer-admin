@@ -1,5 +1,5 @@
 import { describe, it, expect } from "vitest";
-import { applyServerCheck, decideRow, type Decision, type DomainRow } from "@/lib/licensing/decide";
+import { applyServerCheck, decideRow, withoutUnappliedWrites, type Decision, type DomainRow } from "@/lib/licensing/decide";
 import type { Owner } from "@/lib/licensing/entitlement";
 
 const row = (overrides: Partial<DomainRow> = {}): DomainRow => ({
@@ -214,5 +214,25 @@ describe("applyServerCheck", () => {
     const out = run([row({ status: "dismissed" })], [[]], []);
     expect(out.writes).toEqual([]);
     expect(out.statusCounts).toEqual({ dismissed: 1 });
+  });
+});
+
+describe("withoutUnappliedWrites", () => {
+  it("counts rows whose writes didn't land as they were read", () => {
+    const rows = [
+      row({ id: "a", domain: "a.com", status: "blocked", is_blocked: true }),
+      row({ id: "b", domain: "b.com", status: "new" }),
+    ];
+    const decisions = rows.map((r) => decideRow(r, [owner({ activeSites: [{ domain: r.domain, status: "active" }] })], false, false));
+    const outcome = applyServerCheck(rows, decisions, [
+      { domain: "a.com", isBlocked: true },
+      { domain: "b.com", isBlocked: true },
+    ]);
+    expect(outcome.statusCounts).toEqual({ blocked: 1, licensed: 1 });
+
+    const settled = withoutUnappliedWrites(rows, outcome, new Set(["b"]));
+    expect(settled.finalRows[1]).toEqual(rows[1]);
+    expect(settled.statusCounts).toEqual({ blocked: 1, new: 1 });
+    expect(settled.payingButBlocked).toEqual(["a.com"]);
   });
 });

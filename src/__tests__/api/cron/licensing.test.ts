@@ -56,7 +56,8 @@ const payingSnapshot = () =>
 
 function setup(rows: DomainRow[]) {
   const client = createMockSupabaseClient();
-  const domains = client._setResult("licensing_domains", { data: null, error: null });
+  // Writes come back with the updated row's id unless a test queues otherwise
+  const domains = client._setResult("licensing_domains", { data: [{ id: "written" }], error: null });
   domains._resolve
     .mockResolvedValueOnce({ data: null, error: null }) // CSV upsert
     .mockResolvedValueOnce({ data: rows, error: null, count: rows.length }); // row read
@@ -167,6 +168,27 @@ describe("GET /api/cron/licensing", () => {
     expect(domains.eq).not.toHaveBeenCalledWith("id", "r_same");
     expect(body.changed).toBe(1);
     expect(checkBlockedDomainsStrict).not.toHaveBeenCalled();
+  });
+
+  it("counts a write the status guard skipped, and leaves that row out of the checker", async () => {
+    const domains = setup([
+      row({ id: "r_clicked", domain: "clicked.com", status: "new" }),
+      row({ id: "r_other", domain: "other.com", status: "new" }),
+    ]);
+    // Aaron blocked clicked.com during the run, so its guarded write matches no row
+    domains._resolve.mockResolvedValueOnce({ data: [], error: null });
+    vi.mocked(checkBlockedDomainsStrict).mockResolvedValue([
+      { domain: "clicked.com", isBlocked: false },
+      { domain: "other.com", isBlocked: false },
+    ]);
+
+    const res = await GET(request("?recheck=0"));
+    const body = await res.json();
+
+    expect(res.status).toBe(200);
+    expect(domains.select).toHaveBeenCalledWith("id");
+    expect(body).toMatchObject({ changed: 1, skippedByStatusGuard: 1, statusCounts: { new: 1, pending_check: 1 } });
+    expect(submitBatchCheck).toHaveBeenCalledWith(["other.com"], expect.any(String), expect.any(String));
   });
 
   it("skips server-check writes and returns 503 when more than 5% of checks fail", async () => {

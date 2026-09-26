@@ -209,3 +209,30 @@ export function applyServerCheck(
 
   return { writes, finalRows, statusCounts, payingButBlocked, serverCheckFailed, breakerTripped };
 }
+
+/**
+ * Undo, in memory, the writes that didn't land: the status guard skipped them
+ * (the row changed during the run, say Aaron clicked Block or Dismiss) or they
+ * failed. Those rows count as they were read, and stay out of the checker
+ * submission.
+ */
+export function withoutUnappliedWrites(
+  rows: DomainRow[],
+  outcome: ServerCheckOutcome,
+  unappliedIds: Set<string>
+): Pick<ServerCheckOutcome, "finalRows" | "statusCounts" | "payingButBlocked"> {
+  if (unappliedIds.size === 0) {
+    return { finalRows: outcome.finalRows, statusCounts: outcome.statusCounts, payingButBlocked: outcome.payingButBlocked };
+  }
+
+  const finalRows = outcome.finalRows.map((row, i) => (unappliedIds.has(row.id) ? rows[i] : row));
+  const statusCounts: Record<string, number> = {};
+  const finalStatus = new Map<string, string>();
+  for (const row of finalRows) {
+    statusCounts[row.status] = (statusCounts[row.status] ?? 0) + 1;
+    finalStatus.set(row.domain, row.status);
+  }
+  const payingButBlocked = outcome.payingButBlocked.filter((domain) => finalStatus.get(domain) === "blocked");
+
+  return { finalRows, statusCounts, payingButBlocked };
+}

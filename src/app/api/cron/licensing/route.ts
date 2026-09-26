@@ -6,7 +6,7 @@ import { checkBlockedDomainsStrict } from "@/lib/external/blocklist";
 import { submitBatchCheck } from "@/lib/external/install-checker";
 import { findOwners, loadSnapshot, type LicensingSnapshot } from "@/lib/licensing/entitlement";
 import { isSharedHost } from "@/lib/licensing/domain-match";
-import { applyServerCheck, decideRow, type DomainRow } from "@/lib/licensing/decide";
+import { applyServerCheck, decideRow, withoutUnappliedWrites, type DomainRow } from "@/lib/licensing/decide";
 import { loadAllRows } from "@/lib/licensing/load-all";
 
 export async function GET(request: Request) {
@@ -101,24 +101,35 @@ export async function GET(request: Request) {
 
     // Step 6: Write only rows whose state changed, guarded on the status read in
     // step 3 so a Block or Dismiss clicked during the run isn't overwritten.
+    let changed = 0;
     let writeErrors = 0;
+    let skippedByStatusGuard = 0;
+    const unapplied = new Set<string>();
     for (const write of outcome.writes) {
-      const { error } = await supabase
+      const { data: written, error } = await supabase
         .from("licensing_domains")
         .update({ ...write.update, updated_at: now })
         .eq("id", write.id)
-        .eq("status", write.fromStatus);
+        .eq("status", write.fromStatus)
+        .select("id");
       if (error) {
         writeErrors++;
+        unapplied.add(write.id);
         console.error(`[cron/licensing] Failed to update ${write.domain}:`, error);
+      } else if (!written || written.length === 0) {
+        skippedByStatusGuard++;
+        unapplied.add(write.id);
+      } else {
+        changed++;
       }
     }
+    const settled = withoutUnappliedWrites(rows, outcome, unapplied);
 
     // Step 7: Submit all 'pending_check' domains to checker service via batch
     const adminAppUrl = process.env.ADMIN_APP_URL;
     const webhookSecret = process.env.CHECKER_WEBHOOK_SECRET;
     let batchSubmitted = false;
-    const pendingDomains = outcome.finalRows.filter((row) => row.status === "pending_check").map((row) => row.domain);
+    const pendingDomains = settled.finalRows.filter((row) => row.status === "pending_check").map((row) => row.domain);
 
     if (adminAppUrl && webhookSecret && pendingDomains.length > 0) {
       const webhookUrl = `${adminAppUrl}/api/webhooks/checker`;
@@ -140,12 +151,13 @@ export async function GET(request: Request) {
       uniqueDomains: deduplicated.length,
       pendingInstallCheck: pendingDomains.length,
       batchSubmitted,
-      statusCounts: outcome.statusCounts,
-      changed: outcome.writes.length,
+      statusCounts: settled.statusCounts,
+      changed,
+      skippedByStatusGuard,
       writeErrors,
       serverCheckFailed: outcome.serverCheckFailed,
       breakerTripped: outcome.breakerTripped,
-      payingButBlocked: outcome.payingButBlocked,
+      payingButBlocked: settled.payingButBlocked,
     };
     console.log(`[cron/licensing] Summary ${JSON.stringify(summary)}`);
 
