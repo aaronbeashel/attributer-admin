@@ -1,6 +1,7 @@
 // In-memory stand-in for the Supabase client that applies the filters the
-// licensing owner lookup uses (eq, in, or with ilike, limit), so tests check
-// which rows the real query shape selects. The shared mock ignores filters.
+// licensing owner lookup uses (eq, in, or with ilike, limit, range, exact
+// count), so tests check which rows the real query shape selects. The shared
+// mock ignores filters.
 
 type Row = Record<string, unknown>;
 
@@ -33,6 +34,8 @@ export function createFakeLicensingDb(
   function from(table: string) {
     let rows = [...(tables[table] ?? [])] as Row[];
     let limit: number | null = null;
+    let range: [number, number] | null = null;
+    let withCount = false;
     const entry: { table: string; or?: string } = { table };
     queries.push(entry);
 
@@ -40,13 +43,24 @@ export function createFakeLicensingDb(
       if (opts.failTables?.includes(table)) {
         return Promise.resolve({ data: null, error: { message: `fake failure on ${table}` } });
       }
-      const out = limit === null ? rows : rows.slice(0, limit);
-      return Promise.resolve({ data: single ? out[0] ?? null : out, error: null });
+      let out = limit === null ? rows : rows.slice(0, limit);
+      if (range) out = out.slice(range[0], range[1] + 1);
+      return Promise.resolve({ data: single ? out[0] ?? null : out, error: null, count: withCount ? rows.length : null });
     };
 
     const builder = {
-      select: () => builder,
-      order: () => builder,
+      select: (_columns?: string, options?: { count?: string }) => {
+        withCount = options?.count === "exact";
+        return builder;
+      },
+      order: (column: string) => {
+        rows = [...rows].sort((a, b) => String(a[column]).localeCompare(String(b[column])));
+        return builder;
+      },
+      range: (from: number, to: number) => {
+        range = [from, to];
+        return builder;
+      },
       eq: (column: string, value: unknown) => {
         rows = rows.filter((r) => r[column] === value);
         return builder;

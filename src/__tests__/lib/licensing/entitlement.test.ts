@@ -453,6 +453,27 @@ describe("loadOwnersForDomain", () => {
     expect(await loadOwnersForDomain(db() as never, "bad,domain.com", "related")).toEqual([]);
   });
 
+  it("pages an owner account's other sites past 1,000 instead of throwing", async () => {
+    const agencySites: SiteRow[] = [
+      { id: "a0000", account_id: "acc_agency", domain: "bigagency.com", status: "inactive" },
+      ...Array.from({ length: 1200 }, (_, i) => ({
+        id: `a${String(i + 1).padStart(4, "0")}`,
+        account_id: "acc_agency",
+        domain: `client${i}.com`,
+        status: "active",
+      })),
+    ];
+    const big = createFakeLicensingDb({
+      sites: agencySites,
+      accounts: [account("acc_agency", "ops@bigagency.com")],
+      subscriptions: [sub("acc_agency", "active")],
+    });
+    const [owner] = await loadOwnersForDomain(big as never, "bigagency.com", "related");
+    expect(owner.accountId).toBe("acc_agency");
+    expect(owner.inactiveSites).toEqual([{ domain: "bigagency.com", status: "inactive" }]);
+    expect(owner.accountActiveSiteCount).toBe(1200);
+  });
+
   it("throws when 1,000 rows come back", async () => {
     const client = createMockSupabaseClient();
     client._setResult("sites", {

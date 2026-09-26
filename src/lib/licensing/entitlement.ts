@@ -280,7 +280,8 @@ async function cappedRows<T>(
 /**
  * Targeted version of loadSnapshot + findOwners for one domain, used where a
  * full snapshot is too slow (the checker webhook, the block guard). It loads
- * the sites that could relate to the domain, then those accounts' accounts,
+ * the sites that could relate to the domain (throwing if that hits 1,000 rows,
+ * since the filter must be wrong), then pages those accounts' accounts,
  * subscriptions and all of their sites, and runs the same functions on them.
  * Accounts in extraAccountIds are loaded too, and returned as owners even when
  * they have no related site. Any query failure throws.
@@ -319,23 +320,16 @@ export async function loadOwnersForDomain(
   const accountIds = [...new Set([...matched.map((s) => s.account_id), ...extras])];
   if (accountIds.length === 0) return [];
 
+  // Paged, not capped: a big agency can have more than 1,000 sites.
   const [accounts, subs, sites] = await Promise.all([
-    cappedRows<AccountRow>(
-      supabase.from("accounts").select("id, name, email, cancelled_at").in("id", accountIds).limit(QUERY_CAP),
-      "accounts"
+    loadAllRows<AccountRow>(supabase, "accounts", "id, name, email, cancelled_at", (q) => q.in("id", accountIds)),
+    loadAllRows<SubRow>(
+      supabase,
+      "subscriptions",
+      "account_id, status, created_at, plan_name, stripe_customer_id, stripe_subscription_id",
+      (q) => q.in("account_id", accountIds)
     ),
-    cappedRows<SubRow>(
-      supabase
-        .from("subscriptions")
-        .select("account_id, status, created_at, plan_name, stripe_customer_id, stripe_subscription_id")
-        .in("account_id", accountIds)
-        .limit(QUERY_CAP),
-      "subscriptions"
-    ),
-    cappedRows<SiteRow>(
-      supabase.from("sites").select("id, account_id, domain, status").in("account_id", accountIds).limit(QUERY_CAP),
-      "sites"
-    ),
+    loadAllRows<SiteRow>(supabase, "sites", "id, account_id, domain, status", (q) => q.in("account_id", accountIds)),
   ]);
 
   const snapshot = buildSnapshot(sites, accounts, subs);
