@@ -1,4 +1,4 @@
-import { describe, it, expect } from "vitest";
+import { describe, it, expect, vi, afterEach } from "vitest";
 import {
   buildSnapshot,
   findOwners,
@@ -325,6 +325,10 @@ describe("reviewHint", () => {
 });
 
 describe("loadSnapshot", () => {
+  afterEach(() => {
+    vi.restoreAllMocks();
+  });
+
   const siteRows = (n: number, offset = 0) =>
     Array.from({ length: n }, (_, i) => ({ id: `s${offset + i}`, account_id: "acc_1", domain: `d${offset + i}.com`, status: "active" }));
 
@@ -358,9 +362,30 @@ describe("loadSnapshot", () => {
     await expect(loadSnapshot(client as never)).rejects.toThrow(/sites/);
   });
 
-  it("throws when fewer rows load than the count", async () => {
-    const { client } = clientWith([{ data: siteRows(5), error: null, count: 7 }]);
+  it("retries the read once when a row lands mid-read", async () => {
+    vi.spyOn(console, "warn").mockImplementation(() => {});
+    const { client, sites } = clientWith([
+      { data: siteRows(5), error: null, count: 6 },
+      { data: siteRows(6), error: null, count: 6 },
+    ]);
+    const snap = await loadSnapshot(client as never);
+    expect(snap.activeSiteCount.get("acc_1")).toBe(6);
+    expect(sites.range).toHaveBeenCalledTimes(2);
+  });
+
+  it("throws when the read is still short after the retry", async () => {
+    vi.spyOn(console, "warn").mockImplementation(() => {});
+    const { client } = clientWith([
+      { data: siteRows(5), error: null, count: 7 },
+      { data: siteRows(5), error: null, count: 8 },
+    ]);
     await expect(loadSnapshot(client as never)).rejects.toThrow(/Incomplete read of sites/);
+  });
+
+  it("doesn't retry a query error", async () => {
+    const { client, sites } = clientWith([{ data: null, error: { message: "permission denied" } }]);
+    await expect(loadSnapshot(client as never)).rejects.toThrow(/permission denied/);
+    expect(sites.range).toHaveBeenCalledTimes(1);
   });
 });
 
