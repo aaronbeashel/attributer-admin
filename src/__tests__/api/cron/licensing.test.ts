@@ -227,4 +227,47 @@ describe("GET /api/cron/licensing", () => {
     expect(domains.eq).toHaveBeenCalledWith("status", "not_installed");
     expect(submitBatchCheck).toHaveBeenCalledWith(["stranger.com"], expect.any(String), expect.any(String));
   });
+
+  describe("checker submission", () => {
+    function setupPending(count: number) {
+      const client = createMockSupabaseClient();
+      const domains = client._setResult("licensing_domains", { data: [{ id: "written" }], error: null });
+      const rows = Array.from({ length: count }, (_, i) =>
+        row({ id: `p${String(i).padStart(5, "0")}`, domain: `pending${i}.com`, status: "pending_check" })
+      );
+      domains._resolve
+        .mockResolvedValueOnce({ data: null, error: null }) // CSV upsert
+        .mockResolvedValueOnce({ data: rows.slice(0, 1000), error: null, count })
+        .mockResolvedValueOnce({ data: rows.slice(1000), error: null });
+      vi.mocked(createSupabaseAdminClient).mockReturnValue(client as never);
+    }
+
+    it("submits 1,200 pending domains in batches of at most 500", async () => {
+      setupPending(1200);
+
+      const res = await GET(request("?recheck=0"));
+      const body = await res.json();
+
+      expect(res.status).toBe(200);
+      const sizes = vi.mocked(submitBatchCheck).mock.calls.map(([domains]) => domains.length);
+      expect(sizes).toEqual([500, 500, 200]);
+      expect(new Set(vi.mocked(submitBatchCheck).mock.calls.flatMap(([domains]) => domains)).size).toBe(1200);
+      expect(body).toMatchObject({ pendingInstallCheck: 1200, chunksSubmitted: 3, chunksFailed: 0, batchSubmitted: true });
+    });
+
+    it("returns 503 with the counts when a batch fails", async () => {
+      setupPending(1200);
+      vi.mocked(submitBatchCheck)
+        .mockResolvedValueOnce({ batch_id: "b1", total: 500 } as never)
+        .mockRejectedValueOnce(new Error("Batch submit failed: HTTP 400"))
+        .mockResolvedValueOnce({ batch_id: "b3", total: 200 } as never);
+
+      const res = await GET(request("?recheck=0"));
+      const body = await res.json();
+
+      expect(res.status).toBe(503);
+      expect(body).toMatchObject({ success: false, chunksSubmitted: 2, chunksFailed: 1, batchSubmitted: false });
+      expect(body.error).toMatch(/1 of 3 checker batches failed/);
+    });
+  });
 });

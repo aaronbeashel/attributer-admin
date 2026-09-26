@@ -9,6 +9,9 @@ import { isSharedHost } from "@/lib/licensing/domain-match";
 import { applyServerCheck, decideRow, withoutUnappliedWrites, type DomainRow } from "@/lib/licensing/decide";
 import { loadAllRows } from "@/lib/licensing/load-all";
 
+// The checker service refuses more than 1,000 URLs per batch
+const CHECKER_BATCH_SIZE = 500;
+
 export async function GET(request: Request) {
   const authHeader = request.headers.get("authorization");
   if (!authHeader?.startsWith("Bearer ") || authHeader.slice(7) !== process.env.CRON_SECRET) {
@@ -125,32 +128,46 @@ export async function GET(request: Request) {
     }
     const settled = withoutUnappliedWrites(rows, outcome, unapplied);
 
-    // Step 7: Submit all 'pending_check' domains to checker service via batch
+    // Step 7: Submit all 'pending_check' domains to checker service, in batches
     const adminAppUrl = process.env.ADMIN_APP_URL;
     const webhookSecret = process.env.CHECKER_WEBHOOK_SECRET;
-    let batchSubmitted = false;
     const pendingDomains = settled.finalRows.filter((row) => row.status === "pending_check").map((row) => row.domain);
+    let chunksSubmitted = 0;
+    let chunksFailed = 0;
 
     if (adminAppUrl && webhookSecret && pendingDomains.length > 0) {
       const webhookUrl = `${adminAppUrl}/api/webhooks/checker`;
-      try {
-        const batchResult = await submitBatchCheck(pendingDomains, webhookUrl, webhookSecret);
-        console.log(`[cron/licensing] Submitted batch ${batchResult.batch_id}: ${batchResult.total} domains`);
-        batchSubmitted = true;
-      } catch (err) {
-        console.error("[cron/licensing] Failed to submit batch check:", err);
+      for (let i = 0; i < pendingDomains.length; i += CHECKER_BATCH_SIZE) {
+        const chunk = pendingDomains.slice(i, i + CHECKER_BATCH_SIZE);
+        try {
+          const batchResult = await submitBatchCheck(chunk, webhookUrl, webhookSecret);
+          console.log(`[cron/licensing] Submitted batch ${batchResult.batch_id}: ${batchResult.total} domains`);
+          chunksSubmitted++;
+        } catch (err) {
+          chunksFailed++;
+          console.error(`[cron/licensing] Failed to submit ${chunk.length} domains to the checker:`, err);
+        }
       }
+    }
+    const batchSubmitted = chunksSubmitted > 0 && chunksFailed === 0;
+
+    const problems: string[] = [];
+    if (outcome.breakerTripped) {
+      problems.push(`Licensing server failed ${outcome.serverCheckFailed} of ${toCheck.length} checks, server-derived changes skipped`);
+    }
+    if (chunksFailed > 0) {
+      problems.push(`${chunksFailed} of ${chunksSubmitted + chunksFailed} checker batches failed to submit`);
     }
 
     const summary = {
-      success: !outcome.breakerTripped,
-      ...(outcome.breakerTripped
-        ? { error: `Licensing server failed ${outcome.serverCheckFailed} of ${toCheck.length} checks, server-derived changes skipped` }
-        : {}),
+      success: problems.length === 0,
+      ...(problems.length > 0 ? { error: problems.join(". ") } : {}),
       totalRows: rawRows.length,
       uniqueDomains: deduplicated.length,
       pendingInstallCheck: pendingDomains.length,
       batchSubmitted,
+      chunksSubmitted,
+      chunksFailed,
       statusCounts: settled.statusCounts,
       changed,
       skippedByStatusGuard,
@@ -161,8 +178,8 @@ export async function GET(request: Request) {
     };
     console.log(`[cron/licensing] Summary ${JSON.stringify(summary)}`);
 
-    // 503 when the breaker tripped, so the run shows as failed in the logs
-    return NextResponse.json(summary, { status: outcome.breakerTripped ? 503 : 200 });
+    // 503 when the breaker tripped or a checker batch failed, so the run shows as failed in the logs
+    return NextResponse.json(summary, { status: problems.length > 0 ? 503 : 200 });
   } catch (err) {
     console.error("[cron/licensing] Error:", err);
     return NextResponse.json({ error: "Internal server error" }, { status: 500 });
