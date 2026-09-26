@@ -72,15 +72,18 @@ function DomainCard({
   onAction,
 }: {
   domain: LicensingDomain;
-  onAction: (domain: string, action: "blocked" | "dismissed") => void;
+  onAction: (domain: string, action: "blocked" | "dismissed") => Promise<void>;
 }) {
   const [acting, setActing] = useState(false);
   const { copy } = useClipboard();
 
   async function handleAction(action: "blocked" | "dismissed") {
     setActing(true);
-    onAction(domain.domain, action);
-    setActing(false);
+    try {
+      await onAction(domain.domain, action);
+    } finally {
+      setActing(false);
+    }
   }
 
   async function handleCopyDomain() {
