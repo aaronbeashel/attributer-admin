@@ -58,6 +58,21 @@ describe("GET /api/licensing/domains", () => {
     expect(body.domains[1].hint).toBeNull();
   });
 
+  it("hides listed rows that now have a paying owner, and logs how many", async () => {
+    const log = vi.spyOn(console, "log").mockImplementation(() => {});
+    withRows([
+      dbRow("qbench.net", "confirmed_unlicensed"),
+      dbRow("app.qbench.net", "confirmed_unlicensed"),
+      dbRow("stranger.com", "confirmed_unlicensed"),
+    ]);
+
+    const body = await (await GET(new Request("http://localhost/api/licensing/domains?status=confirmed_unlicensed"))).json();
+
+    expect(body.domains.map((d: { domain: string }) => d.domain)).toEqual(["stranger.com"]);
+    expect(log).toHaveBeenCalledWith(expect.stringMatching(/Hid 2 confirmed_unlicensed rows/));
+    log.mockRestore();
+  });
+
   it("doesn't load the snapshot for other statuses", async () => {
     withRows([dbRow("qbench.com", "blocked")]);
 

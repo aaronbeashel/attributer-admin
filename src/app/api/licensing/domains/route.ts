@@ -1,6 +1,6 @@
 import { NextResponse } from "next/server";
 import { createSupabaseAdminClient } from "@/lib/supabase/admin";
-import { reviewHint, type LicensingSnapshot } from "@/lib/licensing/entitlement";
+import { findOwners, payingOwner, reviewHint, type LicensingSnapshot } from "@/lib/licensing/entitlement";
 import { getHintSnapshot } from "@/lib/licensing/snapshot-cache";
 
 // Rows Scan Results lists, which get a hint when they may belong to a paying customer
@@ -45,6 +45,18 @@ export async function GET(request: Request) {
     }
   }
 
+  // Customers who started paying since the last refresh are still stored as
+  // unlicensed until the next run marks them licensed. Never list them.
+  let rows = domains ?? [];
+  if (hintSnapshot) {
+    const snapshot = hintSnapshot;
+    const before = rows.length;
+    rows = rows.filter((d) => !HINT_STATUSES.includes(d.status) || !payingOwner(findOwners(snapshot, d.domain)));
+    if (rows.length < before) {
+      console.log(`[licensing/domains] Hid ${before - rows.length} ${status} rows that now have a paying owner`);
+    }
+  }
+
   // Get status counts
   const statuses = ["confirmed_unlicensed", "pending_check", "blocked", "dismissed", "licensed", "not_installed", "check_failed", "shared_host"];
   const counts: Record<string, number> = {};
@@ -58,7 +70,7 @@ export async function GET(request: Request) {
   }
 
   return NextResponse.json({
-    domains: (domains ?? []).map((d) => ({
+    domains: rows.map((d) => ({
       id: d.id,
       domain: d.domain,
       callCount: d.call_count,
