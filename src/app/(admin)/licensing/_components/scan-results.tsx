@@ -196,6 +196,7 @@ export function ScanResults() {
   const [domains, setDomains] = useState<LicensingDomain[]>([]);
   const [counts, setCounts] = useState<StatusCounts | null>(null);
   const [loading, setLoading] = useState(true);
+  const [loadError, setLoadError] = useState(false);
   const [minCalls, setMinCalls] = useState(50);
 
   const fetchDomains = useCallback(async () => {
@@ -212,7 +213,9 @@ export function ScanResults() {
       // Merge domains, confirmed first then failed
       setDomains([...(confirmedData.domains ?? []), ...(failedData.domains ?? [])]);
       setCounts(confirmedData.counts ?? failedData.counts ?? null);
+      setLoadError(false);
     } catch {
+      setLoadError(true);
       toast.error("Failed to load scan results");
     } finally {
       setLoading(false);
@@ -276,7 +279,11 @@ export function ScanResults() {
       </div>
 
       {/* Cards */}
-      {domains.length === 0 ? (
+      {loadError ? (
+        <div className="rounded-xl border border-secondary bg-primary px-6 py-8 text-center">
+          <p className="text-sm text-error-primary">Couldn&apos;t load the scan results. Refresh the page to try again.</p>
+        </div>
+      ) : domains.length === 0 ? (
         <div className="rounded-xl border border-secondary bg-primary px-6 py-8 text-center">
           <p className="text-sm text-tertiary">
             {counts && counts.pending_check > 0
