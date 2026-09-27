@@ -37,16 +37,27 @@ export async function updateSession(request: NextRequest) {
     .split(",")
     .map((e) => e.trim().toLowerCase());
 
+  const isAdmin = !!user && adminEmails.includes(user.email?.toLowerCase() || "");
+
   const isLoginPage = request.nextUrl.pathname === "/login";
   const isAuthCallback = request.nextUrl.pathname.startsWith("/api/auth");
   const isApiRoute = request.nextUrl.pathname.startsWith("/api/account") ||
     request.nextUrl.pathname.startsWith("/api/stripe") ||
     request.nextUrl.pathname.startsWith("/api/cron") ||
-    request.nextUrl.pathname.startsWith("/api/webhooks") ||
-    request.nextUrl.pathname.startsWith("/api/licensing");
+    request.nextUrl.pathname.startsWith("/api/webhooks");
+  // Licensing routes have no auth of their own and can block or unblock any
+  // domain on the production licensing server, so they need an admin session.
+  const isAdminSessionApiRoute = request.nextUrl.pathname.startsWith("/api/licensing");
 
   // Allow auth callback routes
   if (isAuthCallback) {
+    return supabaseResponse;
+  }
+
+  if (isAdminSessionApiRoute) {
+    if (!isAdmin) {
+      return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+    }
     return supabaseResponse;
   }
 
