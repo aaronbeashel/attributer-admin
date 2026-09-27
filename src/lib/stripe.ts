@@ -198,3 +198,76 @@ export async function createRefund(params: {
     metadata: params.metadata || {},
   });
 }
+
+// --- Licensing checks (read only, never write to Stripe) ---
+
+export interface StripePayingResult {
+  paying: boolean;
+  subscriptionId?: string;
+  status?: string;
+  customerId?: string;
+}
+
+const PAST_DUE_PAID_WINDOW_SECONDS = 400 * 24 * 60 * 60;
+
+function isResourceMissing(err: unknown): boolean {
+  return (err as { code?: string })?.code === "resource_missing";
+}
+
+/**
+ * Does Stripe show any of these customers still paying? Active or trialing
+ * pays. Past due pays only with a paid invoice (amount_paid > 0) in the last
+ * 400 days, so real dunning counts and years-old stale subscriptions don't.
+ * A deleted customer counts as having no subscriptions. Other errors throw.
+ */
+export async function stripeShowsPaying(customerIds: string[]): Promise<StripePayingResult> {
+  const stripe = getStripeServer();
+
+  for (const customerId of [...new Set(customerIds.filter(Boolean))]) {
+    let subs: Stripe.ApiList<Stripe.Subscription>;
+    try {
+      subs = await stripe.subscriptions.list({ customer: customerId, status: "all", limit: 20 });
+    } catch (err: unknown) {
+      if (isResourceMissing(err)) continue;
+      throw err;
+    }
+
+    const live = subs.data.find((s) => s.status === "active" || s.status === "trialing");
+    if (live) return { paying: true, subscriptionId: live.id, status: live.status, customerId };
+
+    const pastDue = subs.data.find((s) => s.status === "past_due");
+    if (!pastDue) continue;
+
+    const since = Math.floor(Date.now() / 1000) - PAST_DUE_PAID_WINDOW_SECONDS;
+    let invoices: Stripe.ApiList<Stripe.Invoice>;
+    try {
+      invoices = await stripe.invoices.list({ customer: customerId, status: "paid", created: { gte: since }, limit: 12 });
+    } catch (err: unknown) {
+      if (isResourceMissing(err)) continue;
+      throw err;
+    }
+
+    if (invoices.data.some((inv) => inv.amount_paid > 0 && inv.created >= since)) {
+      return { paying: true, subscriptionId: pastDue.id, status: pastDue.status, customerId };
+    }
+  }
+
+  return { paying: false };
+}
+
+/**
+ * Whether a subscription is ending ("cancel at period end"), already canceled,
+ * or live. A missing subscription counts as canceled. Other errors throw.
+ */
+export async function getSubscriptionEndState(subscriptionId: string): Promise<"ending" | "canceled" | "live"> {
+  const stripe = getStripeServer();
+  try {
+    const sub = await stripe.subscriptions.retrieve(subscriptionId);
+    if (sub.status === "canceled") return "canceled";
+    if (sub.cancel_at_period_end) return "ending";
+    return "live";
+  } catch (err: unknown) {
+    if (isResourceMissing(err)) return "canceled";
+    throw err;
+  }
+}

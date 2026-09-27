@@ -7,6 +7,7 @@ import { toast } from "sonner";
 import { Badge } from "@/components/base/badges/badges";
 import { Button } from "@/components/base/buttons/button";
 import { useClipboard } from "@/hooks/use-clipboard";
+import type { Hint } from "@/lib/licensing/entitlement";
 
 interface LicensingDomain {
   id: string;
@@ -22,6 +23,7 @@ interface LicensingDomain {
   accountName: string | null;
   accountEmail: string | null;
   createdAt: string;
+  hint: Hint | null;
 }
 
 interface StatusCounts {
@@ -34,7 +36,24 @@ interface StatusCounts {
   check_failed: number;
 }
 
+function getHintText(hint: Hint): string {
+  const email = hint.accountEmail ?? "A customer";
+  switch (hint.kind) {
+    case "other_domain":
+      return hint.siteDomain
+        ? `Possibly a paying customer's other domain. ${hint.siteDomain}${hint.accountEmail ? ` (${hint.accountEmail})` : ""} pays for Attributer. Check before blocking.`
+        : `Possibly a paying customer's other domain. ${email} pays for Attributer. Check before blocking.`;
+    case "suspended_site":
+      return `${email} pays for Attributer but their site ${hint.siteDomain} is suspended. Fix the site before blocking.`;
+    case "no_active_sites":
+      return `${email} pays for Attributer but has no active sites. Check the account before blocking.`;
+    case "removed_site":
+      return `${email} pays for Attributer but removed ${hint.siteDomain} from their account. The script is still running on it.`;
+  }
+}
+
 function getReasonText(domain: LicensingDomain): string {
+  if (domain.hint) return getHintText(domain.hint);
   if (domain.status === "check_failed") {
     const errorDetail = domain.checkError ? ` — ${domain.checkError}` : "";
     if (!domain.accountId) {
@@ -53,15 +72,18 @@ function DomainCard({
   onAction,
 }: {
   domain: LicensingDomain;
-  onAction: (domain: string, action: "blocked" | "dismissed") => void;
+  onAction: (domain: string, action: "blocked" | "dismissed") => Promise<void>;
 }) {
   const [acting, setActing] = useState(false);
   const { copy } = useClipboard();
 
   async function handleAction(action: "blocked" | "dismissed") {
     setActing(true);
-    onAction(domain.domain, action);
-    setActing(false);
+    try {
+      await onAction(domain.domain, action);
+    } finally {
+      setActing(false);
+    }
   }
 
   async function handleCopyDomain() {
@@ -174,6 +196,7 @@ export function ScanResults() {
   const [domains, setDomains] = useState<LicensingDomain[]>([]);
   const [counts, setCounts] = useState<StatusCounts | null>(null);
   const [loading, setLoading] = useState(true);
+  const [loadError, setLoadError] = useState(false);
   const [minCalls, setMinCalls] = useState(50);
 
   const fetchDomains = useCallback(async () => {
@@ -183,13 +206,16 @@ export function ScanResults() {
         fetch(`/api/licensing/domains?status=confirmed_unlicensed&minCalls=${minCalls}`),
         fetch(`/api/licensing/domains?status=check_failed&minCalls=${minCalls}`),
       ]);
+      if (!confirmedRes.ok || !failedRes.ok) throw new Error("Failed to load scan results");
       const confirmedData = await confirmedRes.json();
       const failedData = await failedRes.json();
 
       // Merge domains, confirmed first then failed
       setDomains([...(confirmedData.domains ?? []), ...(failedData.domains ?? [])]);
       setCounts(confirmedData.counts ?? failedData.counts ?? null);
+      setLoadError(false);
     } catch {
+      setLoadError(true);
       toast.error("Failed to load scan results");
     } finally {
       setLoading(false);
@@ -212,6 +238,9 @@ export function ScanResults() {
         setDomains((prev) => prev.filter((d) => d.domain !== domain));
         toast.success(action === "blocked" ? `Blocked ${domain}` : `Dismissed ${domain}`);
         fetchDomains();
+      } else {
+        const data = await res.json().catch(() => ({}));
+        toast.error(data.error ?? `Failed to ${action === "blocked" ? "block" : "dismiss"} ${domain}`);
       }
     } catch {
       toast.error(`Failed to ${action} ${domain}`);
@@ -250,7 +279,11 @@ export function ScanResults() {
       </div>
 
       {/* Cards */}
-      {domains.length === 0 ? (
+      {loadError ? (
+        <div className="rounded-xl border border-secondary bg-primary px-6 py-8 text-center">
+          <p className="text-sm text-error-primary">Couldn&apos;t load the scan results. Refresh the page to try again.</p>
+        </div>
+      ) : domains.length === 0 ? (
         <div className="rounded-xl border border-secondary bg-primary px-6 py-8 text-center">
           <p className="text-sm text-tertiary">
             {counts && counts.pending_check > 0

@@ -44,14 +44,24 @@ export function CancelModal({ isOpen, onClose, accountId, companyName, currentPe
         throw new Error(data.error || "Failed to cancel account");
       }
 
-      // Block sites if checked
+      // Block sites if checked. The block guard can refuse a site (another paying
+      // customer uses the domain); the account cancel still stands.
+      const refusals: string[] = [];
       if (blockSites && sites.length > 0) {
         for (const site of sites) {
-          await fetch("/api/licensing/action", {
-            method: "POST",
-            headers: { "Content-Type": "application/json" },
-            body: JSON.stringify({ domain: site.domain, action: "blocked", reason: "Account cancelled" }),
-          });
+          try {
+            const blockRes = await fetch("/api/licensing/action", {
+              method: "POST",
+              headers: { "Content-Type": "application/json" },
+              body: JSON.stringify({ domain: site.domain, action: "blocked", reason: "Account cancelled", excludeAccountId: accountId }),
+            });
+            if (!blockRes.ok) {
+              const data = await blockRes.json().catch(() => ({}));
+              refusals.push(data.error ?? `Failed to block ${site.domain}`);
+            }
+          } catch {
+            refusals.push(`Failed to block ${site.domain}`);
+          }
         }
       }
 
@@ -60,6 +70,10 @@ export function CancelModal({ isOpen, onClose, accountId, companyName, currentPe
           ? `Will cancel at end of billing period`
           : "Subscription cancelled immediately",
       });
+      if (refusals.length > 0) {
+        const summary = refusals.length === 1 ? "1 site wasn't blocked." : `${refusals.length} sites weren't blocked.`;
+        toast.warning(`${summary} ${refusals[0].replace(/^Not blocked\. /, "")}`);
+      }
       onClose();
       router.refresh();
     } catch (err) {

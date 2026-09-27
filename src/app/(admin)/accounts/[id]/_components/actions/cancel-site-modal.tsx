@@ -12,7 +12,7 @@ interface CancelSiteModalProps {
   onClose: () => void;
   accountId: string;
   site: { id: string; name: string; domain: string | null };
-  onCancelled: (domain: string | null) => void;
+  onCancelled: (domain: string | null, domainBlocked: boolean) => void;
 }
 
 export function CancelSiteModal({ isOpen, onClose, accountId, site, onCancelled }: CancelSiteModalProps) {
@@ -39,17 +39,25 @@ export function CancelSiteModal({ isOpen, onClose, accountId, site, onCancelled 
         body: JSON.stringify({ reason: reasonLabel, feedback }),
       });
 
+      const data = await res.json().catch(() => ({}));
       if (!res.ok) {
-        const data = await res.json().catch(() => ({}));
         throw new Error(data.error || "Failed to cancel site");
       }
 
+      // The block guard can leave the domain unblocked (a paying customer still
+      // uses it), and the site cancel still stands.
+      const domainBlocked = data.domainBlocked === true;
       toast.success(`Cancelled ${site.name}`, {
         description: site.domain
-          ? `${site.domain} set to inactive and blocked`
+          ? domainBlocked
+            ? `${site.domain} set to inactive and blocked`
+            : `${site.domain} set to inactive. The domain wasn't blocked.`
           : "Site set to inactive",
       });
-      onCancelled(site.domain);
+      if (site.domain && !domainBlocked && data.blockSkippedReason) {
+        toast.warning(data.blockSkippedReason);
+      }
+      onCancelled(site.domain, domainBlocked);
       onClose();
       router.refresh();
     } catch (err) {
@@ -77,6 +85,12 @@ export function CancelSiteModal({ isOpen, onClose, accountId, site, onCancelled 
               ) : null}
               {" "}— the same thing that happens when a customer cancels a site themselves. The
               account&apos;s subscription and billing are not changed.
+              {site.domain ? (
+                <>
+                  {" "}If this is the account&apos;s only active site, or another paying customer uses the
+                  same domain, the domain is left unblocked.
+                </>
+              ) : null}
             </p>
 
             <div className="mt-5 space-y-4">
