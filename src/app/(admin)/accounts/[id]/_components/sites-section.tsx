@@ -1,11 +1,13 @@
 "use client";
 
 import { useEffect, useState } from "react";
+import { useRouter } from "next/navigation";
 import { toast } from "sonner";
 import { Badge } from "@/components/base/badges/badges";
 import type { AccountSite } from "@/lib/queries/account-detail";
 import { SiteDetailsCard, SiteDetailsDrawer } from "./site-details";
 import { CancelSiteModal } from "./actions/cancel-site-modal";
+import { EditSiteModal } from "./actions/edit-site-modal";
 
 interface SitesSectionProps {
   sites: AccountSite[];
@@ -23,10 +25,14 @@ function resolveToolValue(value: string | null, other: string | null): string | 
 }
 
 export function SitesSection({ sites, accountId }: SitesSectionProps) {
+  const router = useRouter();
   const [licensing, setLicensing] = useState<LicensingStatus>({});
   const [loadingLicensing, setLoadingLicensing] = useState(true);
+  // Bumped to fetch the licensing badges again (after an address edit)
+  const [licensingVersion, setLicensingVersion] = useState(0);
   const [selectedSiteId, setSelectedSiteId] = useState<string | null>(null);
   const [cancelSite, setCancelSite] = useState<AccountSite | null>(null);
+  const [editSiteId, setEditSiteId] = useState<string | null>(null);
 
   useEffect(() => {
     let cancelled = false;
@@ -45,7 +51,26 @@ export function SitesSection({ sites, accountId }: SitesSectionProps) {
       .catch(() => {})
       .finally(() => { if (!cancelled) setLoadingLicensing(false); });
     return () => { cancelled = true; };
-  }, [accountId]);
+  }, [accountId, licensingVersion]);
+
+  function handleSiteSaved() {
+    // The badges are keyed by domain, so fetch them again for the corrected one
+    setLoadingLicensing(true);
+    setLicensingVersion((v) => v + 1);
+    router.refresh();
+  }
+
+  const editSite = sites.find((s) => s.id === editSiteId) ?? null;
+  const editSiteModal = editSite && (
+    <EditSiteModal
+      key={editSite.id}
+      isOpen={Boolean(editSite)}
+      onClose={() => setEditSiteId(null)}
+      accountId={accountId}
+      site={{ id: editSite.id, name: editSite.name, domain: editSite.domain, websiteUrl: editSite.websiteUrl }}
+      onSaved={handleSiteSaved}
+    />
+  );
 
   async function handleLicensingAction(domain: string, action: "blocked" | "unblocked") {
     try {
@@ -84,12 +109,16 @@ export function SitesSection({ sites, accountId }: SitesSectionProps) {
   if (sites.length === 1) {
     const site = sites[0];
     return (
-      <SiteDetailsCard
-        site={site}
-        licensing={site.domain ? licensing[site.domain] : undefined}
-        loadingLicensing={loadingLicensing}
-        onLicensingAction={handleLicensingAction}
-      />
+      <>
+        <SiteDetailsCard
+          site={site}
+          licensing={site.domain ? licensing[site.domain] : undefined}
+          loadingLicensing={loadingLicensing}
+          onLicensingAction={handleLicensingAction}
+          onEditSite={(s) => setEditSiteId(s.id)}
+        />
+        {editSiteModal}
+      </>
     );
   }
 
@@ -218,8 +247,11 @@ export function SitesSection({ sites, accountId }: SitesSectionProps) {
             if (!open) setSelectedSiteId(null);
           }}
           onCancelSite={(site) => setCancelSite(site)}
+          onEditSite={(site) => setEditSiteId(site.id)}
         />
       )}
+
+      {editSiteModal}
 
       {cancelSite && (
         <CancelSiteModal

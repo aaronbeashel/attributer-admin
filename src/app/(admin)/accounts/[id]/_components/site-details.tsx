@@ -19,6 +19,7 @@ interface SiteDetailsProps {
   licensing?: LicensingRecord;
   loadingLicensing: boolean;
   onLicensingAction: (domain: string, action: "blocked" | "unblocked") => void;
+  onEditSite?: (site: AccountSite) => void;
 }
 
 function Field({ label, value, href }: { label: string; value: string | null; href?: string }) {
@@ -83,6 +84,16 @@ function LicensingActionButton({
   );
 }
 
+function EditButton({ site, onEditSite }: { site: AccountSite; onEditSite?: (site: AccountSite) => void }) {
+  // Webflow Marketplace sites get their address from Webflow
+  if (!onEditSite || site.webflowConnected) return null;
+  return (
+    <Button color="secondary" size="sm" onClick={() => onEditSite(site)}>
+      Edit
+    </Button>
+  );
+}
+
 function SiteFieldGrid({ site }: { site: AccountSite }) {
   const cms = resolveToolValue(site.cms, site.cmsOther);
   const formTool = resolveToolValue(site.formTool, site.formToolOther);
@@ -100,7 +111,7 @@ function SiteFieldGrid({ site }: { site: AccountSite }) {
   );
 }
 
-export function SiteDetailsCard({ site, licensing, loadingLicensing, onLicensingAction }: SiteDetailsProps) {
+export function SiteDetailsCard({ site, licensing, loadingLicensing, onLicensingAction, onEditSite }: SiteDetailsProps) {
   return (
     <div className="rounded-xl border border-secondary bg-primary">
       <div className="border-b border-secondary px-4 py-3 sm:px-6 sm:py-4">
@@ -114,6 +125,7 @@ export function SiteDetailsCard({ site, licensing, loadingLicensing, onLicensing
               {site.status.charAt(0).toUpperCase() + site.status.slice(1)}
             </Badge>
             <LicensingBadge site={site} licensing={licensing} loadingLicensing={loadingLicensing} />
+            <EditButton site={site} onEditSite={onEditSite} />
             <LicensingActionButton
               site={site}
               licensing={licensing}
@@ -145,6 +157,7 @@ export function SiteDetailsDrawer({
   isOpen,
   onOpenChange,
   onCancelSite,
+  onEditSite,
 }: SiteDetailsDrawerProps) {
   return (
     <SlideoutMenu isOpen={isOpen} onOpenChange={onOpenChange} isDismissable>
@@ -182,6 +195,7 @@ export function SiteDetailsDrawer({
         <Button size="sm" color="secondary" onClick={() => onOpenChange(false)}>
           Close
         </Button>
+        <EditButton site={site} onEditSite={onEditSite} />
         <LicensingActionButton
           site={site}
           licensing={licensing}
