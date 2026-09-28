@@ -74,6 +74,8 @@ export interface AccountSite {
   cmsOther: string | null;
   formToolOther: string | null;
   crmOther: string | null;
+  /** Connected through the Webflow Marketplace, so its address comes from Webflow. */
+  webflowConnected: boolean;
 }
 
 export interface AccountEnrichment {
@@ -265,8 +267,29 @@ export async function getAccountSites(accountId: string): Promise<AccountSite[]>
     .select("*")
     .eq("account_id", accountId)
     .order("created_at", { ascending: true });
+  const sites = data ?? [];
 
-  return (data ?? []).map((s) => ({
+  // Webflow Marketplace sites can't have their address edited here. If this
+  // check fails, treat every site as connected so the page hides Edit rather
+  // than offering it on a Webflow site (the edit route refuses those anyway).
+  let webflowSiteIds = new Set<string>();
+  let webflowUnknown = false;
+  if (sites.length > 0) {
+    const { data: integrations, error } = await supabase
+      .from("site_integrations")
+      .select("site_id")
+      .in("site_id", sites.map((s) => s.id))
+      .eq("client_type", "webflow_app")
+      .is("disconnected_at", null);
+    if (error) {
+      console.error("[account-detail] Couldn't load Webflow connections, hiding Edit:", error);
+      webflowUnknown = true;
+    } else {
+      webflowSiteIds = new Set((integrations ?? []).map((i) => i.site_id as string));
+    }
+  }
+
+  return sites.map((s) => ({
     id: s.id,
     name: s.name,
     domain: s.domain,
@@ -280,6 +303,7 @@ export async function getAccountSites(accountId: string): Promise<AccountSite[]>
     cmsOther: s.cms_other,
     formToolOther: s.form_tool_other,
     crmOther: s.crm_other,
+    webflowConnected: webflowUnknown || webflowSiteIds.has(s.id),
   }));
 }
 
