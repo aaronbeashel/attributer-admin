@@ -467,6 +467,16 @@ describe("editSiteAddress", () => {
       });
     });
 
+    it("says it couldn't check when the block check throws", async () => {
+      vi.mocked(checkBlockedDomainsStrict).mockRejectedValue(new Error("network down"));
+      const result = await editSiteAddress(sibling(), input());
+
+      expect(result).toMatchObject({
+        kind: "needs_confirmation",
+        message: expect.stringContaining("\nWe couldn't check whether acmeroofing.com is blocked."),
+      });
+    });
+
     it("doesn't check the block when this save wouldn't unblock", async () => {
       const client = db(
         {
@@ -610,6 +620,16 @@ describe("editSiteAddress", () => {
       expect(result).toMatchObject({ kind: "saved", unblock: "check_failed" });
       expect(unblockDomain).not.toHaveBeenCalled();
       expect(recordUnblocked).not.toHaveBeenCalled();
+    });
+
+    it("reports check_failed when the block check throws, and keeps the save", async () => {
+      vi.mocked(checkBlockedDomainsStrict).mockRejectedValue(new Error("network down"));
+
+      const result = await editSiteAddress(db(), input());
+
+      expect(result).toMatchObject({ kind: "saved", unblock: "check_failed" });
+      expect(editedRow()).toMatchObject({ domain: "acmeroofing.com" });
+      expect(unblockDomain).not.toHaveBeenCalled();
     });
 
     it("keeps the save and reports unblockRecorded false when the licensing record doesn't save", async () => {

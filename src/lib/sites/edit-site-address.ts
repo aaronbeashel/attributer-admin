@@ -187,10 +187,10 @@ export async function editSiteAddress(supabase: SupabaseClient, input: EditSiteI
     // Only worth saying when this save would unblock it
     if (willUnblock) {
       const other = who((conflictOwners.find((c) => !c.sameAccount) ?? first).owner);
-      const [check] = await checkBlockedDomainsStrict([domain]);
-      if (check?.isBlocked === true) {
+      const isBlocked = await blockedState(domain);
+      if (isBlocked === true) {
         lines.push(`${root} is blocked. Saving unblocks it for everyone on it, including ${other}.`);
-      } else if (check?.isBlocked !== false) {
+      } else if (isBlocked === null) {
         lines.push(`We couldn't check whether ${root} is blocked. If it is, saving unblocks it for everyone on it, including ${other}.`);
       }
     }
@@ -255,15 +255,19 @@ export async function editSiteAddress(supabase: SupabaseClient, input: EditSiteI
   };
 }
 
-async function unblockIfBlocked(domain: string): Promise<UnblockOutcome> {
-  let isBlocked: boolean | null;
+/** Whether the licensing server blocks the domain (it answers for the root). Null when it couldn't say. */
+async function blockedState(domain: string): Promise<boolean | null> {
   try {
     const [check] = await checkBlockedDomainsStrict([domain]);
-    isBlocked = check?.isBlocked ?? null;
+    return check?.isBlocked ?? null;
   } catch (err) {
     console.error(`[edit-site-address] Block check failed for ${domain}:`, err);
-    isBlocked = null;
+    return null;
   }
+}
+
+async function unblockIfBlocked(domain: string): Promise<UnblockOutcome> {
+  const isBlocked = await blockedState(domain);
   if (isBlocked === null) return "check_failed";
   if (!isBlocked) return "not_blocked";
 
