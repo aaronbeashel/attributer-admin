@@ -19,6 +19,8 @@ export function createMockSupabaseChain(result: MockResult = { data: null, error
     upsert: vi.fn().mockReturnThis(),
     delete: vi.fn().mockReturnThis(),
     eq: vi.fn().mockReturnThis(),
+    neq: vi.fn().mockReturnThis(),
+    is: vi.fn().mockReturnThis(),
     in: vi.fn().mockReturnThis(),
     or: vi.fn().mockReturnThis(),
     not: vi.fn().mockReturnThis(),

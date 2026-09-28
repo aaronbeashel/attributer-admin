@@ -123,6 +123,20 @@ describe("POST /api/licensing/action", () => {
     expect(domainsTable().eq).toHaveBeenCalledWith("domain", "acme.com");
   });
 
+  it("still reports the unblock when recording it fails", async () => {
+    client._setResult("licensing_domains", { data: null, error: { message: "db down" } });
+    const consoleError = vi.spyOn(console, "error").mockImplementation(() => {});
+
+    const res = await POST(makeRequest({ domain: "acme.com", action: "unblocked", notes: "fixed" }));
+
+    expect(res.status).toBe(200);
+    expect(await res.json()).toEqual({ success: true });
+    expect(client.from("licensing_reviews").insert).toHaveBeenCalledWith(
+      expect.objectContaining({ domain: "acme.com", action: "unblocked", notes: "fixed", actioned_by: "admin" })
+    );
+    consoleError.mockRestore();
+  });
+
   it("dismisses without the guard or the licensing server", async () => {
     const res = await POST(makeRequest({ domain: "acme.com", action: "dismissed" }));
 
