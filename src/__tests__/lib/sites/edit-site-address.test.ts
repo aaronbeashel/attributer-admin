@@ -467,6 +467,38 @@ describe("editSiteAddress", () => {
       });
     });
 
+    it("doesn't name this account as the other customer when only its own sites share the root", async () => {
+      const ownSibling = () => db({ sites: [site(ME, "blog.acmeroofing.com", "active")] });
+
+      blockedIs(true);
+      const blocked = await editSiteAddress(ownSibling(), input());
+      expect(blocked).toMatchObject({ kind: "needs_confirmation" });
+      expect(blocked.kind === "needs_confirmation" && blocked.message.split("\n")[1]).toBe(
+        "acmeroofing.com is blocked. Saving unblocks it for everyone on it."
+      );
+
+      blockedIs(null);
+      const unchecked = await editSiteAddress(ownSibling(), input());
+      expect(unchecked.kind === "needs_confirmation" && unchecked.message.split("\n")[1]).toBe(
+        "We couldn't check whether acmeroofing.com is blocked. If it is, saving unblocks it for everyone on it."
+      );
+    });
+
+    it("names the other account, not this one, when both share the root", async () => {
+      blockedIs(true);
+      const result = await editSiteAddress(
+        db({
+          accounts: [account("acc_shop", "shop@acmeroofing.com")],
+          sites: [site(ME, "blog.acmeroofing.com", "active"), site("acc_shop", "shop.acmeroofing.com", "inactive")],
+        }),
+        input()
+      );
+
+      expect(result.kind === "needs_confirmation" && result.message.split("\n")[1]).toBe(
+        "acmeroofing.com is blocked. Saving unblocks it for everyone on it, including shop@acmeroofing.com."
+      );
+    });
+
     it("says it couldn't check when the block check throws", async () => {
       vi.mocked(checkBlockedDomainsStrict).mockRejectedValue(new Error("network down"));
       const result = await editSiteAddress(sibling(), input());

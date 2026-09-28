@@ -186,12 +186,14 @@ export async function editSiteAddress(supabase: SupabaseClient, input: EditSiteI
     ];
     // Only worth saying when this save would unblock it
     if (willUnblock) {
-      const other = who((conflictOwners.find((c) => !c.sameAccount) ?? first).owner);
+      // Name another customer, never this account
+      const other = conflictOwners.find((c) => !c.sameAccount);
+      const including = other ? `, including ${who(other.owner)}` : "";
       const isBlocked = await blockedState(domain);
       if (isBlocked === true) {
-        lines.push(`${root} is blocked. Saving unblocks it for everyone on it, including ${other}.`);
+        lines.push(`${root} is blocked. Saving unblocks it for everyone on it${including}.`);
       } else if (isBlocked === null) {
-        lines.push(`We couldn't check whether ${root} is blocked. If it is, saving unblocks it for everyone on it, including ${other}.`);
+        lines.push(`We couldn't check whether ${root} is blocked. If it is, saving unblocks it for everyone on it${including}.`);
       }
     }
     return { kind: "needs_confirmation", message: lines.join("\n"), conflicts };
