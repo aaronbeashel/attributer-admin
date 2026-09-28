@@ -1,5 +1,6 @@
 import { createServerClient } from "@supabase/ssr";
 import { NextResponse, type NextRequest } from "next/server";
+import { parseAdminEmails } from "@/lib/admin-auth";
 
 export async function updateSession(request: NextRequest) {
   let supabaseResponse = NextResponse.next({
@@ -33,9 +34,7 @@ export async function updateSession(request: NextRequest) {
     data: { user },
   } = await supabase.auth.getUser();
 
-  const adminEmails = (process.env.ADMIN_EMAILS || "")
-    .split(",")
-    .map((e) => e.trim().toLowerCase());
+  const adminEmails = parseAdminEmails(process.env.ADMIN_EMAILS);
 
   const isAdmin = !!user && adminEmails.includes(user.email?.toLowerCase() || "");
 
