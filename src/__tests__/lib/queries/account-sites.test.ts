@@ -18,10 +18,18 @@ const site = (id: string, account_id = "acc_1") => ({
 });
 
 const sites = [site("site_1"), site("site_2"), site("site_3"), site("site_4", "acc_other")];
+// Each row carries its embedded site, as select("site_id, sites!inner(account_id)") returns it
+const integration = (site_id: string, client_type: string, disconnected_at: string | null, account_id = "acc_1") => ({
+  site_id,
+  client_type,
+  disconnected_at,
+  sites: { account_id },
+});
 const site_integrations = [
-  { site_id: "site_1", client_type: "webflow_app", disconnected_at: null },
-  { site_id: "site_2", client_type: "webflow_app", disconnected_at: "2026-05-01T00:00:00Z" },
-  { site_id: "site_3", client_type: "wordpress_plugin", disconnected_at: null },
+  integration("site_1", "webflow_app", null),
+  integration("site_2", "webflow_app", "2026-05-01T00:00:00Z"),
+  integration("site_3", "wordpress_plugin", null),
+  integration("site_4", "webflow_app", null, "acc_other"),
 ];
 
 describe("getAccountSites webflowConnected", () => {
@@ -39,6 +47,30 @@ describe("getAccountSites webflowConnected", () => {
       ["site_2", false],
       ["site_3", false],
     ]);
+  });
+
+  it("filters through the sites join, not a list of every site id", async () => {
+    const fake = createFakeLicensingDb({ sites, site_integrations });
+    const inSpy = vi.fn();
+    const from = fake.from;
+    fake.from = (table: string) => {
+      const builder = from(table) as { in: (...args: unknown[]) => unknown };
+      if (table === "site_integrations") {
+        const original = builder.in;
+        builder.in = (...args: unknown[]) => {
+          inSpy(...args);
+          return original(...args);
+        };
+      }
+      return builder;
+    };
+    vi.mocked(createSupabaseAdminClient).mockReturnValue(fake as never);
+
+    await getAccountSites("acc_1");
+
+    // !inner makes the embedded filter drop other accounts' rows instead of just nulling the embed
+    expect(fake.queries.find((q) => q.table === "site_integrations")?.select).toBe("site_id, sites!inner(account_id)");
+    expect(inSpy).not.toHaveBeenCalled();
   });
 
   it("treats every site as connected when the check fails, so Edit is hidden", async () => {

@@ -1,11 +1,17 @@
 // In-memory stand-in for the Supabase client that applies the filters the
 // licensing owner lookup uses (eq, neq, is, in, or with ilike, limit, range,
-// exact count), so tests check which rows the real query shape selects. The
+// exact count), so tests check which rows the real query shape selects. A
+// dotted column ("sites.account_id") filters on an embedded row, which tests
+// supply on the row itself, as an !inner join returns it. The
 // shared mock ignores filters. update() changes the stored rows that match its
 // filters (returning them when .select() is chained) and insert() adds rows,
 // so later reads see the writes. Every write attempt is recorded in `writes`.
 
 type Row = Record<string, unknown>;
+
+function valueAt(row: Row, column: string): unknown {
+  return column.split(".").reduce<unknown>((value, key) => (value as Row | null | undefined)?.[key], row);
+}
 
 function likeToRegExp(pattern: string): RegExp {
   const escaped = pattern.replace(/[.+?^${}()|[\]\\]/g, "\\$&").replace(/\*/g, ".*");
@@ -32,7 +38,7 @@ export interface FakeWrite {
 
 export interface FakeLicensingDb {
   from: (table: string) => unknown;
-  queries: Array<{ table: string; or?: string }>;
+  queries: Array<{ table: string; or?: string; select?: string }>;
   writes: FakeWrite[];
   /** The live rows of a table, including anything written. */
   rows: (table: string) => Row[];
@@ -61,7 +67,7 @@ export function createFakeLicensingDb(
     let pendingUpdate: Row | null = null;
     let pendingInsert: Row[] | null = null;
     let returnRows = false;
-    const entry: { table: string; or?: string } = { table };
+    const entry: { table: string; or?: string; select?: string } = { table };
     queries.push(entry);
 
     const failure = () => Promise.resolve({ data: null, error: { message: `fake failure on ${table}` }, count: null });
@@ -92,8 +98,9 @@ export function createFakeLicensingDb(
     };
 
     const builder = {
-      select: (_columns?: string, options?: { count?: string }) => {
+      select: (columns?: string, options?: { count?: string }) => {
         if (pendingUpdate || pendingInsert) returnRows = true;
+        else entry.select = columns;
         withCount = options?.count === "exact";
         return builder;
       },
@@ -114,19 +121,19 @@ export function createFakeLicensingDb(
         return builder;
       },
       eq: (column: string, value: unknown) => {
-        rows = rows.filter((r) => r[column] === value);
+        rows = rows.filter((r) => valueAt(r, column) === value);
         return builder;
       },
       neq: (column: string, value: unknown) => {
-        rows = rows.filter((r) => r[column] !== value);
+        rows = rows.filter((r) => valueAt(r, column) !== value);
         return builder;
       },
       is: (column: string, value: null | boolean) => {
-        rows = rows.filter((r) => (r[column] ?? null) === value);
+        rows = rows.filter((r) => (valueAt(r, column) ?? null) === value);
         return builder;
       },
       in: (column: string, values: unknown[]) => {
-        rows = rows.filter((r) => values.includes(r[column]));
+        rows = rows.filter((r) => values.includes(valueAt(r, column)));
         return builder;
       },
       or: (expression: string) => {

@@ -275,10 +275,11 @@ export async function getAccountSites(accountId: string): Promise<AccountSite[]>
   let webflowSiteIds = new Set<string>();
   let webflowUnknown = false;
   if (sites.length > 0) {
+    // Filtered through the join, so the request doesn't grow with the site count
     const { data: integrations, error } = await supabase
       .from("site_integrations")
-      .select("site_id")
-      .in("site_id", sites.map((s) => s.id))
+      .select("site_id, sites!inner(account_id)")
+      .eq("sites.account_id", accountId)
       .eq("client_type", "webflow_app")
       .is("disconnected_at", null);
     if (error) {
