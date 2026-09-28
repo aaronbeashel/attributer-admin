@@ -1,12 +1,10 @@
 import type { SupabaseClient } from "@supabase/supabase-js";
 import { normalizeDomain } from "@/lib/licensing/normalize";
-import { isSharedHost, rootFamily } from "@/lib/licensing/domain-match";
+import { isSharedHost, isValidDomain, rootFamily } from "@/lib/licensing/domain-match";
 import { loadOwnersForDomain, PAYING_SUB_STATUSES, type Owner } from "@/lib/licensing/entitlement";
 import { getSubscriptionEndState, stripeShowsPaying } from "@/lib/stripe";
 
 export type GuardResult = { ok: true; domain: string } | { ok: false; status: 400 | 409 | 503; error: string };
-
-const DOMAIN_PATTERN = /^[a-z0-9.-]+$/;
 
 function refuse(status: 400 | 409 | 503, error: string): GuardResult {
   return { ok: false, status, error };
@@ -14,12 +12,6 @@ function refuse(status: 400 | 409 | 503, error: string): GuardResult {
 
 function who(owner: Owner): string {
   return owner.accountEmail ?? owner.accountName ?? owner.accountId;
-}
-
-function isValidDomain(domain: string): boolean {
-  if (!domain || !DOMAIN_PATTERN.test(domain)) return false;
-  const labels = domain.split(".");
-  return labels.length >= 2 && labels.every((label) => label.length > 0);
 }
 
 /**

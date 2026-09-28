@@ -52,6 +52,15 @@ export const MULTI_PART_PUBLIC_SUFFIXES: readonly string[] = [
 
 const MULTI_PART_SET = new Set(MULTI_PART_PUBLIC_SUFFIXES);
 
+const DOMAIN_PATTERN = /^[a-z0-9.-]+$/;
+
+/** Lowercase letters, digits, dots and hyphens, at least two labels, none empty. Expects a normalised domain. */
+export function isValidDomain(domain: string): boolean {
+  if (!domain || !DOMAIN_PATTERN.test(domain)) return false;
+  const labels = domain.split(".");
+  return labels.length >= 2 && labels.every((label) => label.length > 0);
+}
+
 export function isSharedHost(domain: string): boolean {
   const d = normalizeDomain(domain);
   if (!d) return false;

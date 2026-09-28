@@ -28,7 +28,7 @@ function getBaseUrl(): string {
   return process.env.LICENSING_SERVER_URL || "https://licenses.attributer.io";
 }
 
-export const LICENSING_WRITES_DISABLED_MESSAGE = "Licensing server writes are disabled in this environment.";
+export { LICENSING_WRITES_DISABLED_MESSAGE } from "@/lib/licensing/messages";
 
 // Staging shares the production licensing server, so staging sets this to stop
 // Block, Unblock and Cancel Site from changing it. Production never sets it.
