@@ -51,8 +51,11 @@ function showSavedToasts(data: {
         : undefined;
   toast.success(`Saved ${domain}`, description ? { description } : undefined);
 
-  if (data.unblock === "failed" || data.unblock === "check_failed") {
+  if (data.unblock === "failed") {
     toast.warning(`Saved, but we couldn't unblock ${domain}. Use Unblock on this site to try again.`);
+  }
+  if (data.unblock === "check_failed") {
+    toast.warning(`Saved, but we couldn't check whether ${domain} is blocked. Refresh in a minute and use Unblock if it shows Blocked.`);
   }
   if (data.unblock === "disabled") {
     toast.warning(LICENSING_WRITES_DISABLED_MESSAGE);
@@ -109,7 +112,18 @@ export function EditSiteModal({ isOpen, onClose, accountId, site, onSaved }: Edi
 
       if (!res.ok) {
         setWarning(null);
-        setError(data.error ?? `Something went wrong (HTTP ${res.status}). Refresh the page to see whether it saved.`);
+        setError(
+          res.status === 401
+            ? "Your sign-in has expired. Reload the page and sign in again."
+            : (data.error ?? `Something went wrong (HTTP ${res.status}). Refresh the page to see whether it saved.`)
+        );
+        return;
+      }
+
+      // A success status without the saved shape: we can't tell what happened
+      if (!data.success || !data.site) {
+        setWarning(null);
+        setError("Saved status unknown. Refresh the page to check.");
         return;
       }
 
