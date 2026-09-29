@@ -15,8 +15,8 @@ GET https://licenses.attributer.io/report.csv
 HTTP Basic Auth — same credentials as the licensing server API:
 
 ```
-Username: attributer
-Password: attributer2024
+Username: licensing
+Password: <see Railway, or Aaron's Keychain entry "Attributer licensing server">
 ```
 
 ## Response
