@@ -19,7 +19,7 @@ export interface LicensingWriteResult {
 }
 
 function getAuthHeader(): string {
-  const username = process.env.LICENSING_SERVER_USERNAME || "attributer";
+  const username = process.env.LICENSING_SERVER_USERNAME || "licensing";
   const password = process.env.LICENSING_SERVER_PASSWORD || "";
   return "Basic " + Buffer.from(`${username}:${password}`).toString("base64");
 }
