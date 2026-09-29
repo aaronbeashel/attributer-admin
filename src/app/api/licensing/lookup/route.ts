@@ -9,7 +9,7 @@ export async function GET(request: Request) {
   }
 
   const serverUrl = process.env.LICENSING_SERVER_URL || "https://licenses.attributer.io";
-  const username = process.env.LICENSING_SERVER_USERNAME || "attributer";
+  const username = process.env.LICENSING_SERVER_USERNAME || "licensing";
   const password = process.env.LICENSING_SERVER_PASSWORD || "";
 
   try {
