@@ -6,7 +6,7 @@ vi.mock("@/lib/supabase/server", () => ({
   createSupabaseServerClient: vi.fn(async () => ({ auth: { getUser } })),
 }));
 
-import { getAdminSessionEmail } from "@/lib/admin-session";
+import { getAdminSessionEmail, isAdminRequest } from "@/lib/admin-session";
 import { parseAdminEmails } from "@/lib/admin-auth";
 
 function signedInAs(email: string | null) {
@@ -54,5 +54,36 @@ describe("getAdminSessionEmail", () => {
 describe("parseAdminEmails", () => {
   it("splits, trims and lowercases", () => {
     expect(parseAdminEmails(" A@x.com ,b@Y.com")).toEqual(["a@x.com", "b@y.com"]);
+  });
+});
+
+describe("isAdminRequest", () => {
+  beforeEach(() => {
+    vi.clearAllMocks();
+    process.env.ADMIN_EMAILS = "admin@example.com";
+  });
+
+  function request(headers: Record<string, string> = {}) {
+    return new Request("http://localhost/api/account/1", { headers });
+  }
+
+  it("accepts the admin API key without a session", async () => {
+    signedInAs(null);
+    expect(await isAdminRequest(request({ authorization: `Bearer ${process.env.ADMIN_API_KEY}` }))).toBe(true);
+  });
+
+  it("accepts a signed-in admin with no key", async () => {
+    signedInAs("admin@example.com");
+    expect(await isAdminRequest(request())).toBe(true);
+  });
+
+  it("rejects a wrong key with no admin session", async () => {
+    signedInAs("someone@else.com");
+    expect(await isAdminRequest(request({ authorization: "Bearer wrong" }))).toBe(false);
+  });
+
+  it("rejects a request with neither", async () => {
+    signedInAs(null);
+    expect(await isAdminRequest(request())).toBe(false);
   });
 });

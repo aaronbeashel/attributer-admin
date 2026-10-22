@@ -69,15 +69,11 @@ export function ChangePlanModal({
     if (!isOpen) return;
     setIsLoadingCoupons(true);
     Promise.all([
-      fetch("/api/stripe/coupons", {
-        headers: { Authorization: `Bearer ${process.env.NEXT_PUBLIC_ADMIN_API_KEY}` },
-      })
+      fetch("/api/stripe/coupons")
         .then((res) => res.json())
         .then((data) => setCoupons(data.coupons || []))
         .catch(() => toast.error("Failed to load coupons")),
-      fetch(`/api/account/${accountId}/subscription`, {
-        headers: { Authorization: `Bearer ${process.env.NEXT_PUBLIC_ADMIN_API_KEY}` },
-      })
+      fetch(`/api/account/${accountId}/subscription`)
         .then((res) => res.json())
         .then((data) => setExistingDiscount(data?.stripe?.discount ?? null))
         .catch(() => setExistingDiscount(null)),
@@ -143,7 +139,7 @@ export function ChangePlanModal({
     try {
       const res = await fetch(`/api/account/${accountId}/subscription`, {
         method: "PUT",
-        headers: { "Content-Type": "application/json", Authorization: `Bearer ${process.env.NEXT_PUBLIC_ADMIN_API_KEY}` },
+        headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
           newPlanId,
           billingPeriod,

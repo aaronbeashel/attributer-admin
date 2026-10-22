@@ -1,9 +1,9 @@
 import { NextResponse } from "next/server";
-import { verifyAdminApiKey } from "@/lib/admin-auth";
+import { isAdminRequest } from "@/lib/admin-session";
 import { getStripeServer } from "@/lib/stripe";
 
 export async function GET(request: Request) {
-  if (!verifyAdminApiKey(request)) {
+  if (!(await isAdminRequest(request))) {
     return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
   }
 

@@ -36,9 +36,7 @@ export function SitesSection({ sites, accountId }: SitesSectionProps) {
 
   useEffect(() => {
     let cancelled = false;
-    fetch(`/api/account/${accountId}/licensing`, {
-      headers: { Authorization: `Bearer ${process.env.NEXT_PUBLIC_ADMIN_API_KEY}` },
-    })
+    fetch(`/api/account/${accountId}/licensing`)
       .then((res) => res.json())
       .then((data) => {
         if (cancelled) return;

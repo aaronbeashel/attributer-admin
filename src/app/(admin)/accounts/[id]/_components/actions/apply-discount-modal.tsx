@@ -36,9 +36,7 @@ export function ApplyDiscountModal({ isOpen, onClose, accountId }: ApplyDiscount
   useEffect(() => {
     if (isOpen) {
       setIsLoading(true);
-      fetch("/api/stripe/coupons", {
-        headers: { Authorization: `Bearer ${process.env.NEXT_PUBLIC_ADMIN_API_KEY}` },
-      })
+      fetch("/api/stripe/coupons")
         .then((res) => res.json())
         .then((data) => setCoupons(data.coupons || []))
         .catch(() => toast.error("Failed to load coupons"))
@@ -53,7 +51,7 @@ export function ApplyDiscountModal({ isOpen, onClose, accountId }: ApplyDiscount
     try {
       const res = await fetch(`/api/account/${accountId}/discount`, {
         method: "POST",
-        headers: { "Content-Type": "application/json", Authorization: `Bearer ${process.env.NEXT_PUBLIC_ADMIN_API_KEY}` },
+        headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ couponId: selectedCouponId }),
       });
 

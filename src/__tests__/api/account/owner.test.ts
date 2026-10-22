@@ -1,6 +1,6 @@
 import { describe, it, expect, vi, beforeEach } from "vitest";
 
-vi.mock("@/lib/admin-auth", () => ({ verifyAdminApiKey: vi.fn() }));
+vi.mock("@/lib/admin-session", () => ({ isAdminRequest: vi.fn() }));
 vi.mock("@/lib/account-helpers", () => ({ getAccountWithSubscription: vi.fn() }));
 vi.mock("@/lib/stripe", () => ({ updateStripeCustomer: vi.fn() }));
 vi.mock("@/lib/event-logger", () => ({ logEvent: vi.fn().mockResolvedValue(undefined) }));
@@ -17,7 +17,7 @@ vi.mock("@/lib/supabase/admin", () => ({
 }));
 
 import { PUT } from "@/app/api/account/[id]/owner/route";
-import { verifyAdminApiKey } from "@/lib/admin-auth";
+import { isAdminRequest } from "@/lib/admin-session";
 import { getAccountWithSubscription } from "@/lib/account-helpers";
 import { updateStripeCustomer } from "@/lib/stripe";
 import { logEvent } from "@/lib/event-logger";
@@ -35,12 +35,12 @@ const mockParams = Promise.resolve({ id: "acc_123" });
 describe("PUT /api/account/[id]/owner", () => {
   beforeEach(() => {
     vi.clearAllMocks();
-    vi.mocked(verifyAdminApiKey).mockReturnValue(true);
+    vi.mocked(isAdminRequest).mockResolvedValue(true);
     vi.mocked(getAccountWithSubscription).mockResolvedValue(MOCK_ACCOUNT_WITH_SUB);
   });
 
   it("returns 401 when API key is invalid", async () => {
-    vi.mocked(verifyAdminApiKey).mockReturnValue(false);
+    vi.mocked(isAdminRequest).mockResolvedValue(false);
     const res = await PUT(makeRequest({ email: "new@test.com" }), { params: mockParams });
     expect(res.status).toBe(401);
   });

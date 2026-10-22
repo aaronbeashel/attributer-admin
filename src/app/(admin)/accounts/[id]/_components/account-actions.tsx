@@ -28,7 +28,7 @@ export function AccountActions({ accountId, companyName, email, currentPeriodEnd
     try {
       const res = await fetch(`/api/account/${accountId}/impersonate`, {
         method: "POST",
-        headers: { "Content-Type": "application/json", Authorization: `Bearer ${process.env.NEXT_PUBLIC_ADMIN_API_KEY}` },
+        headers: { "Content-Type": "application/json" },
       });
 
       if (!res.ok) {

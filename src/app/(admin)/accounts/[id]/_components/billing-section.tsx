@@ -30,9 +30,7 @@ export function BillingSection({ accountId, stripeCustomerId }: BillingSectionPr
     if (!stripeCustomerId) return;
 
     let cancelled = false;
-    fetch(`/api/account/${accountId}/charges`, {
-      headers: { Authorization: `Bearer ${process.env.NEXT_PUBLIC_ADMIN_API_KEY}` },
-    })
+    fetch(`/api/account/${accountId}/charges`)
       .then((res) => res.json())
       .then((data) => { if (!cancelled) setCharges(data.charges || []); })
       .catch(() => { if (!cancelled) setCharges([]); })
