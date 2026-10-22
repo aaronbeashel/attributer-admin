@@ -1,12 +1,12 @@
 import { describe, it, expect, vi, beforeEach, afterEach } from "vitest";
 
-vi.mock("@/lib/admin-auth", () => ({ verifyAdminApiKey: vi.fn() }));
+vi.mock("@/lib/admin-session", () => ({ isAdminRequest: vi.fn() }));
 vi.mock("@/lib/supabase/admin", () => ({
   createSupabaseAdminClient: vi.fn(),
 }));
 
 import { POST } from "@/app/api/account/[id]/enrich/route";
-import { verifyAdminApiKey } from "@/lib/admin-auth";
+import { isAdminRequest } from "@/lib/admin-session";
 import { createSupabaseAdminClient } from "@/lib/supabase/admin";
 
 const originalFetch = globalThis.fetch;
@@ -21,7 +21,7 @@ const makeRequest = () =>
 describe("POST /api/account/[id]/enrich", () => {
   beforeEach(() => {
     vi.clearAllMocks();
-    vi.mocked(verifyAdminApiKey).mockReturnValue(true);
+    vi.mocked(isAdminRequest).mockResolvedValue(true);
     process.env.ENRICHMENT_SERVICE_URL = "https://enrichment.test";
     process.env.ENRICHMENT_API_KEY = "test-key";
     process.env.ADMIN_APP_URL = "https://admin.test";
@@ -70,7 +70,7 @@ describe("POST /api/account/[id]/enrich", () => {
   });
 
   it("returns 401 when API key is invalid", async () => {
-    vi.mocked(verifyAdminApiKey).mockReturnValue(false);
+    vi.mocked(isAdminRequest).mockResolvedValue(false);
     const res = await POST(makeRequest(), { params: mockParams });
     expect(res.status).toBe(401);
   });

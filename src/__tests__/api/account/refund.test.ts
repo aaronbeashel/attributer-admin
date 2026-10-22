@@ -1,9 +1,7 @@
 import { describe, it, expect, vi, beforeEach } from "vitest";
 
 // Mock all dependencies before importing the route
-vi.mock("@/lib/admin-auth", () => ({
-  verifyAdminApiKey: vi.fn(),
-}));
+vi.mock("@/lib/admin-session", () => ({ isAdminRequest: vi.fn() }));
 vi.mock("@/lib/account-helpers", () => ({
   getAccountWithSubscription: vi.fn(),
 }));
@@ -18,7 +16,7 @@ vi.mock("@/lib/event-logger", () => ({
 }));
 
 import { POST } from "@/app/api/account/[id]/refund/route";
-import { verifyAdminApiKey } from "@/lib/admin-auth";
+import { isAdminRequest } from "@/lib/admin-session";
 import { getAccountWithSubscription } from "@/lib/account-helpers";
 import { getStripeServer, createRefund } from "@/lib/stripe";
 import { logEvent } from "@/lib/event-logger";
@@ -36,12 +34,12 @@ const mockParams = Promise.resolve({ id: "acc_123" });
 describe("POST /api/account/[id]/refund", () => {
   beforeEach(() => {
     vi.clearAllMocks();
-    vi.mocked(verifyAdminApiKey).mockReturnValue(true);
+    vi.mocked(isAdminRequest).mockResolvedValue(true);
     vi.mocked(getAccountWithSubscription).mockResolvedValue(MOCK_ACCOUNT_WITH_SUB);
   });
 
   it("returns 401 when API key is invalid", async () => {
-    vi.mocked(verifyAdminApiKey).mockReturnValue(false);
+    vi.mocked(isAdminRequest).mockResolvedValue(false);
     const res = await POST(makeRequest({ chargeId: "ch_1" }), { params: mockParams });
     expect(res.status).toBe(401);
   });

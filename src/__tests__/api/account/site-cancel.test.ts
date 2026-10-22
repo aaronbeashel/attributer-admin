@@ -1,6 +1,6 @@
 import { describe, it, expect, vi, beforeEach } from "vitest";
 
-vi.mock("@/lib/admin-auth", () => ({ verifyAdminApiKey: vi.fn() }));
+vi.mock("@/lib/admin-session", () => ({ isAdminRequest: vi.fn() }));
 vi.mock("@/lib/supabase/admin", () => ({ createSupabaseAdminClient: vi.fn() }));
 vi.mock("@/lib/event-logger", () => ({ logEvent: vi.fn().mockResolvedValue(undefined) }));
 vi.mock("@/lib/external/blocklist", async (importOriginal) => ({
@@ -12,7 +12,7 @@ vi.mock("@/lib/licensing/block-guard", () => ({ checkBlockAllowed: vi.fn() }));
 
 import { NextRequest } from "next/server";
 import { POST } from "@/app/api/account/[id]/sites/[siteId]/cancel/route";
-import { verifyAdminApiKey } from "@/lib/admin-auth";
+import { isAdminRequest } from "@/lib/admin-session";
 import { createSupabaseAdminClient } from "@/lib/supabase/admin";
 import { logEvent } from "@/lib/event-logger";
 import { blockDomain } from "@/lib/external/blocklist";
@@ -41,7 +41,7 @@ describe("POST /api/account/[id]/sites/[siteId]/cancel", () => {
     client = createMockSupabaseClient();
     withSite("www.acme.com");
     vi.mocked(createSupabaseAdminClient).mockReturnValue(client as never);
-    vi.mocked(verifyAdminApiKey).mockReturnValue(true);
+    vi.mocked(isAdminRequest).mockResolvedValue(true);
     vi.mocked(checkBlockAllowed).mockResolvedValue({ ok: true, domain: "acme.com" });
     vi.mocked(blockDomain).mockResolvedValue({ success: true });
   });

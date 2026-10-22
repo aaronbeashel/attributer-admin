@@ -1,12 +1,12 @@
 import { describe, it, expect, vi, beforeEach } from "vitest";
 
-vi.mock("@/lib/admin-auth", () => ({ verifyAdminApiKey: vi.fn() }));
+vi.mock("@/lib/admin-session", () => ({ isAdminRequest: vi.fn() }));
 vi.mock("@/lib/supabase/admin", () => ({
   createSupabaseAdminClient: vi.fn(),
 }));
 
 import { GET } from "@/app/api/account/by-email/route";
-import { verifyAdminApiKey } from "@/lib/admin-auth";
+import { isAdminRequest } from "@/lib/admin-session";
 import { createSupabaseAdminClient } from "@/lib/supabase/admin";
 
 const makeRequest = (email?: string) => {
@@ -21,11 +21,11 @@ const makeRequest = (email?: string) => {
 describe("GET /api/account/by-email", () => {
   beforeEach(() => {
     vi.clearAllMocks();
-    vi.mocked(verifyAdminApiKey).mockReturnValue(true);
+    vi.mocked(isAdminRequest).mockResolvedValue(true);
   });
 
   it("returns 401 when API key is invalid", async () => {
-    vi.mocked(verifyAdminApiKey).mockReturnValue(false);
+    vi.mocked(isAdminRequest).mockResolvedValue(false);
     const res = await GET(makeRequest("test@example.com"));
     expect(res.status).toBe(401);
   });

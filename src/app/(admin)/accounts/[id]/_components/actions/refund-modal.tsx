@@ -42,7 +42,7 @@ export function RefundModal({ isOpen, onClose, accountId, charge }: RefundModalP
 
       const res = await fetch(`/api/account/${accountId}/refund`, {
         method: "POST",
-        headers: { "Content-Type": "application/json", Authorization: `Bearer ${process.env.NEXT_PUBLIC_ADMIN_API_KEY}` },
+        headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ chargeId: charge.id, amount: amountCents, reason }),
       });
 

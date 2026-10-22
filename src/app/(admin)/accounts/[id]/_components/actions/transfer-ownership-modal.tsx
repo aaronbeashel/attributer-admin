@@ -30,7 +30,7 @@ export function TransferOwnershipModal({ isOpen, onClose, accountId, currentEmai
       // Transfer ownership
       const res = await fetch(`/api/account/${accountId}/owner`, {
         method: "PUT",
-        headers: { "Content-Type": "application/json", Authorization: `Bearer ${process.env.NEXT_PUBLIC_ADMIN_API_KEY}` },
+        headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ email, firstName: firstName || undefined, lastName: lastName || undefined, company: company || undefined }),
       });
 
@@ -43,7 +43,7 @@ export function TransferOwnershipModal({ isOpen, onClose, accountId, currentEmai
       if (sendPasswordReset) {
         await fetch(`/api/account/${accountId}/password-reset`, {
           method: "POST",
-          headers: { "Content-Type": "application/json", Authorization: `Bearer ${process.env.NEXT_PUBLIC_ADMIN_API_KEY}` },
+          headers: { "Content-Type": "application/json" },
           body: JSON.stringify({ email }),
         });
       }

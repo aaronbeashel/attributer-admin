@@ -1,5 +1,5 @@
 import { NextResponse } from "next/server";
-import { verifyAdminApiKey } from "@/lib/admin-auth";
+import { isAdminRequest } from "@/lib/admin-session";
 import { getAccountWithSubscription } from "@/lib/account-helpers";
 import { getStripeServer } from "@/lib/stripe";
 import { logEvent } from "@/lib/event-logger";
@@ -10,7 +10,7 @@ export async function PUT(
   request: Request,
   { params }: { params: Promise<{ id: string }> }
 ) {
-  if (!verifyAdminApiKey(request)) {
+  if (!(await isAdminRequest(request))) {
     return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
   }
 

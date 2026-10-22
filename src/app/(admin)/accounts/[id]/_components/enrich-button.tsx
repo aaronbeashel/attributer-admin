@@ -20,7 +20,6 @@ export function EnrichButton({ accountId, hasEnrichment }: EnrichButtonProps) {
     try {
       const res = await fetch(`/api/account/${accountId}/enrich`, {
         method: "POST",
-        headers: { Authorization: `Bearer ${process.env.NEXT_PUBLIC_ADMIN_API_KEY}` },
       });
 
       if (!res.ok) {

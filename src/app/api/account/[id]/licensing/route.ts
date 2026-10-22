@@ -1,5 +1,5 @@
 import { NextResponse } from "next/server";
-import { verifyAdminApiKey } from "@/lib/admin-auth";
+import { isAdminRequest } from "@/lib/admin-session";
 import { createSupabaseAdminClient } from "@/lib/supabase/admin";
 import { checkBlockedDomains } from "@/lib/external/blocklist";
 
@@ -7,7 +7,7 @@ export async function GET(
   request: Request,
   { params }: { params: Promise<{ id: string }> }
 ) {
-  if (!verifyAdminApiKey(request)) {
+  if (!(await isAdminRequest(request))) {
     return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
   }
 

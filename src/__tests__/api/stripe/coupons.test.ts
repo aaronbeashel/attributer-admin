@@ -1,6 +1,6 @@
 import { describe, it, expect, vi, beforeEach } from "vitest";
 
-vi.mock("@/lib/admin-auth", () => ({ verifyAdminApiKey: vi.fn() }));
+vi.mock("@/lib/admin-session", () => ({ isAdminRequest: vi.fn() }));
 vi.mock("@/lib/stripe", () => ({
   getStripeServer: vi.fn().mockReturnValue({
     coupons: { list: vi.fn() },
@@ -8,7 +8,7 @@ vi.mock("@/lib/stripe", () => ({
 }));
 
 import { GET } from "@/app/api/stripe/coupons/route";
-import { verifyAdminApiKey } from "@/lib/admin-auth";
+import { isAdminRequest } from "@/lib/admin-session";
 import { getStripeServer } from "@/lib/stripe";
 
 const makeRequest = () =>
@@ -19,11 +19,11 @@ const makeRequest = () =>
 describe("GET /api/stripe/coupons", () => {
   beforeEach(() => {
     vi.clearAllMocks();
-    vi.mocked(verifyAdminApiKey).mockReturnValue(true);
+    vi.mocked(isAdminRequest).mockResolvedValue(true);
   });
 
   it("returns 401 when API key is invalid", async () => {
-    vi.mocked(verifyAdminApiKey).mockReturnValue(false);
+    vi.mocked(isAdminRequest).mockResolvedValue(false);
     const res = await GET(makeRequest());
     expect(res.status).toBe(401);
   });
