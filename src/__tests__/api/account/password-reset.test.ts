@@ -1,4 +1,4 @@
-import { describe, it, expect, vi, beforeEach } from "vitest";
+import { describe, it, expect, vi, beforeEach, afterEach } from "vitest";
 
 vi.mock("@/lib/admin-session", () => ({ isAdminRequest: vi.fn() }));
 vi.mock("@/lib/account-helpers", () => ({ getAccountWithSubscription: vi.fn() }));
